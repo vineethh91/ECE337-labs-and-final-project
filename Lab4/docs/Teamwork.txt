@@ -1,0 +1,26 @@
+1. Rate yourself and your partner or partners on the following criteria. Apply each criterion to each of your partners individually. Answer on a scale of 1 to 5 where 1 = strongly disagree, 3 = indifferent, 5 = strongly agree.
+ANSWER : 5
+
+This team member made a sincere effort (to the best that you can tell) to figure out the design and testing so as to be able to contribute to the team effort
+ANSWER : 5
+
+ This team member was respectful and considerate of other team members.
+ANSWER : 5
+
+ This team member fulfilled all promised or commitments to team members including those listed in ground rules 1-5.
+ANSWER : 5
+
+ You were able to achieve or learn more with this partner than you would have without.
+ANSWER : 5
+
+2. Describe briefly the contribution of each team member.
+ANSWER : I collaborated with Tej Rajendran and we discussed about a lot of the top level blocks and understood much better how they were connected and passing data between the other blocks. We also worked on the test bench and agreed upon simple test cases that we could quickly test both our designs against.
+
+3. How many times did you and your team-mate(s) meet? How frequently did you e-mail or instant message your team-mate(s)?
+ANSWER: we met on Monday and spent most of Tuesday in the lab coding and debugging and figuring out what was wrong with each other designs, successfully and unsuccessfully at times because of the complexity.
+
+4. What did you contribute to the team effort?
+ANSWER: I worked partly on understanding a lot of the top level and lower level blocks and their interaction. I also worked on defining some of the simple testcases in the test bench.
+
+5. What did each of your collaborators contribute? If you learned something useful from this person, what was it?
+ANSWER : We both contributed our knowledge and understanding of the different blocks. Because of the open ended design of the blocks we both had different interpretations of the functioning of the blocks and found logical errors durin the debugging process because of those errors. So it helped to have different perspectives.

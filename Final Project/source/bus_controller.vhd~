@@ -1,0 +1,343 @@
+-- $Id: $
+-- File name:   bus_controller.vhd
+-- Created:     11/19/2012
+-- Author:      Bryan Dallas
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: This controls data coming in on the bus lines.
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+USE ieee.numeric_std.all;
+
+entity bus_controller is
+	generic ( address : std_logic_vector(7 downto 0) := "00000001" );
+    port (
+        clk : in std_logic;
+        rst : in std_logic;
+        SRAM_control : in std_logic;
+        BUS_IN : in std_logic_vector(9 downto 0);
+        MASTER_ADDRESS : in std_logic_vector(7 downto 0);
+        cont_addr : out std_logic_vector(8 downto 0);
+        write_enable : out std_logic;
+        BUS_VAL : out std_logic_vector(7 downto 0)
+    );
+end entity;
+
+architecture busController of bus_controller is
+
+    component write_ptr
+        port (
+            clk : in std_logic;
+            rst_ptr : in std_logic;
+            inc_ptr : in std_logic;
+            data_ptr : out std_logic_vector(8 downto 0)  
+        );
+    end component;
+    
+    component packet_ptr
+        port (
+            clk : in std_logic;
+            write_to_ptr : in std_logic;
+            new_ptr : in std_logic_vector(8 downto 0);
+            pkt_ptr : out std_logic_vector(8 downto 0)  
+        );
+    end component;
+    
+    component byte_counter
+        port (
+            clk : in std_logic;
+            rst_count : in std_logic;
+            inc_count : in std_logic;
+            temp_ptr : out std_logic_vector(6 downto 0)  
+        );
+    end component;
+
+    type state_type is (RIDLE, WIDLE, IDLE, CHECK_ADDR, WAIT_FOR_BYTE, SHIFT_BYTE, WAIT_OTHER, WAIT_FOR_WRITE, WRITE_BYTE1, WRITE_BYTE2, WRITE_BYTE3, WRITE_BYTE4, WRITE_BYTE5, WAIT_OTHER2, WAIT_FOR_WRITE2, WRITE_CNT0, WRITE_CNT1, WRITE_CNT2, WRITE_CNT3, WRITE_CNT4, WRITE_CNT5, WRITE_CNT6, WAIT_OTHER3, WAIT_FOR_WRITE3, WRITE_ADDR0, WRITE_ADDR1, WRITE_ADDR2, WRITE_ADDR3, WRITE_ADDR4, WRITE_ADDR5, WRITE_ADDR6, CHANGE_PKT_PTR, INC_WRITE_PTR, INC_WRITE_PTR2);
+    signal state, nextstate : state_type;
+    signal byte, nByte : std_logic_vector(7 downto 0);
+    signal rst_ptr, inc_ptr, write_to_ptr, rst_count, inc_count : std_logic;
+    signal data_ptr, pkt_ptr : std_logic_vector(8 downto 0);
+    signal temp_count : std_logic_vector(6 downto 0);
+    signal addr_ptr : std_logic_vector(8 downto 0);
+    signal conv_temp : Integer range 0 to 400;
+    signal myRstCnt, myRstPtr, incPktCnt : std_logic;
+    signal numPkts : Integer range 0 to 4;
+begin
+
+
+    WP: write_ptr port map(
+                clk => clk,
+                rst_ptr => rst_ptr,
+                inc_ptr => inc_ptr,
+                data_ptr => data_ptr  
+                );
+                
+    PP: packet_ptr port map (
+            clk => clk,
+            write_to_ptr => write_to_ptr,
+            new_ptr => data_ptr,
+            pkt_ptr => pkt_ptr
+        );
+        
+    BC: byte_counter port map (
+            clk => clk,
+            rst_count => rst_count,
+            inc_count => inc_count,
+            temp_ptr => temp_count 
+        );
+
+    StateReg: process (clk, rst, nextstate)
+    begin
+        if (rst = '0') then
+            state <= RIDLE;
+        elsif (clk'event and clk = '1') then
+            state <= nextstate;
+        end if;
+    end process;
+    
+    CountReg: process (incPktCnt, clk, rst)
+    begin
+      if (rst = '0') then
+        numPkts <= 0;
+      elsif (clk'event and clk = '1') then
+          if (incPktCnt = '1') then
+            if (numPkts = 4) then
+              numPkts <= 0;
+            else
+              numPkts <= numPkts + 1;
+            end if;
+          else
+            numPkts <= numPkts; 
+          end if;
+      end if;
+    end process;
+    
+    ResetProcess: process (rst, myRstCnt, myRstPtr)
+    begin
+       rst_count <= '1';
+       rst_ptr <= '1';
+       if (rst = '0' or (myRstCnt = '1' and myRstPtr = '1')) then
+          rst_count <= '0';
+          rst_ptr <= '0';
+       elsif (myRstPtr = '1') then
+          rst_ptr <= '0';
+       elsif (myRstCnt = '1') then
+          rst_count <= '0'; 
+       end if;
+    end process;
+    
+    ByteReg: process (clk)
+    begin
+        if (rst = '0') then
+	    byte <= "00000000";
+        elsif (clk'event and clk = '1') then
+            byte <= nByte;
+        end if;
+    end process;
+    
+    NextStateLogic: process (SRAM_control, BUS_IN, MASTER_ADDRESS, state)
+    begin
+        nextstate <= state;
+        case state is
+            when RIDLE =>
+                nextstate <= IDLE;
+            when WIDLE =>
+                if (BUS_IN(8) = '0') then
+                    nextstate <= IDLE;
+                end if;
+            when IDLE =>
+                if (BUS_IN(8) = '1' and BUS_IN(9) = '1') then
+                    nextstate <= CHECK_ADDR;
+                end if;
+            when CHECK_ADDR =>
+                if (BUS_IN(7 downto 0) = address) then
+                    nextstate <= WAIT_FOR_BYTE;
+                else
+                    nextstate <= WIDLE;
+                end if;
+            when WAIT_FOR_BYTE =>
+                if (BUS_IN(8) = '0' and not (temp_count = "000000")) then
+                    nextstate <= WAIT_OTHER2;
+                elsif (BUS_IN(8) = '0') then
+                	nextstate <= IDLE;
+                elsif (BUS_IN(9) = '1') then
+                    nextstate <= SHIFT_BYTE;
+                end if;
+            when SHIFT_BYTE =>
+                nextstate <= WAIT_OTHER;
+            when WAIT_OTHER =>
+                if (SRAM_control = '0') then
+                    nextstate <= WAIT_FOR_WRITE;
+                end if;
+            when WAIT_FOR_WRITE =>
+                if (SRAM_control = '1') then
+                    nextstate <= WRITE_BYTE1;
+                end if;
+            when WRITE_BYTE1 =>
+                nextstate <= WRITE_BYTE2;
+            when WRITE_BYTE2 =>
+                nextstate <= WRITE_BYTE3;
+            when WRITE_BYTE3 =>
+                nextstate <= WRITE_BYTE4;
+            when WRITE_BYTE4 =>
+                nextstate <= WRITE_BYTE5;
+            when WRITE_BYTE5 =>
+                nextstate <= INC_WRITE_PTR;
+            when INC_WRITE_PTR =>
+                nextstate <= WAIT_FOR_BYTE;
+            when WAIT_OTHER2 =>
+                if (SRAM_control = '0') then
+                    nextstate <= WAIT_FOR_WRITE2;
+                end if;
+            when WAIT_FOR_WRITE2 =>
+                if (SRAM_control = '1') then
+                    nextstate <= WRITE_CNT0;
+                end if;
+            when WRITE_CNT0 =>
+                nextstate <= WRITE_CNT1;
+            when WRITE_CNT1 =>
+                nextstate <= WRITE_CNT2;
+            when WRITE_CNT2 =>
+                nextstate <= WRITE_CNT3;
+            when WRITE_CNT3 =>
+                nextstate <= WRITE_CNT4;
+            when WRITE_CNT4 =>
+                nextstate <= WRITE_CNT5;
+            when WRITE_CNT5 =>
+                nextstate <= WRITE_CNT6;
+            when WRITE_CNT6 =>
+                nextstate <= WAIT_OTHER3;
+            when WAIT_OTHER3 =>
+                if (SRAM_control = '0') then
+                    nextstate <= WAIT_FOR_WRITE3;
+                end if;
+            when WAIT_FOR_WRITE3 =>
+                if (SRAM_control = '1') then
+                    nextstate <= WRITE_ADDR0;
+                end if;
+            when WRITE_ADDR0 =>
+                nextstate <= WRITE_ADDR1;
+            when WRITE_ADDR1 =>
+                nextstate <= WRITE_ADDR2;
+            when WRITE_ADDR2 =>
+                nextstate <= WRITE_ADDR3;
+            when WRITE_ADDR3 =>
+                nextstate <= WRITE_ADDR4;
+            when WRITE_ADDR4 =>
+                nextstate <= WRITE_ADDR5;
+            when WRITE_ADDR5 =>
+                nextstate <= WRITE_ADDR6;
+            when WRITE_ADDR6 => 
+                nextstate <= CHANGE_PKT_PTR;
+            when CHANGE_PKT_PTR =>
+                nextstate <= INC_WRITE_PTR2;
+            when INC_WRITE_PTR2 =>
+                nextstate <= IDLE;
+            when others => 
+                nextstate <= WIDLE;
+        end case;
+    end process;
+    
+    OutputLogic: process (state, numPkts)
+    begin
+        cont_addr <= data_ptr;
+        write_enable <= '0';
+        BUS_VAL <= byte;
+        inc_ptr <= '0';
+        nByte <= byte;
+        write_to_ptr <= '0';
+        inc_count <= '0';
+        incPktCnt <= '0';
+        myRstPtr <= '0';
+        myRstCnt <= '0';
+        case state is
+            when RIDLE =>
+                write_to_ptr <= '1';
+                myRstPtr <= '1';
+                myRstCnt <= '1';
+            when SHIFT_BYTE =>
+                nByte <= BUS_IN(7 downto 0);
+            when WRITE_BYTE1 =>
+                write_enable <= '1';
+            when WRITE_BYTE2 =>
+                write_enable <= '1';
+            when WRITE_BYTE3 =>
+                write_enable <= '1';
+            when WRITE_BYTE4 =>
+                write_enable <= '1';
+            when WRITE_BYTE5 =>
+                write_enable <= '1';
+            when INC_WRITE_PTR =>
+                inc_ptr <= '1';
+                inc_count <= '1';
+            when WRITE_CNT0 =>
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT1 =>
+                write_enable <= '1';
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT2 =>
+                write_enable <= '1';
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT3 =>
+                write_enable <= '1';
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT4 =>
+                write_enable <= '1';
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT5 =>
+                write_enable <= '1';
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_CNT6 =>
+                cont_addr <= pkt_ptr;
+                BUS_VAL <= "0" & temp_count;
+            when WRITE_ADDR0 =>
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR1 =>
+                write_enable <= '1';
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR2 =>
+                write_enable <= '1';
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR3 =>
+                write_enable <= '1';
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR4 =>
+                write_enable <= '1';
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR5 =>
+                write_enable <= '1';
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when WRITE_ADDR6 =>
+                cont_addr <= addr_ptr;
+                BUS_VAL <= MASTER_ADDRESS;
+            when CHANGE_PKT_PTR =>
+                write_to_ptr <= '1';
+                myRstCnt <= '1'; --  Reset the byte count
+                if (numPkts = 4) then
+                   myRstPtr <= '1';
+                end if;
+            when INC_WRITE_PTR2 =>
+                inc_ptr <= '1';
+                incPktCnt <= '1';
+            when others =>
+        end case;
+    end process;
+    
+    conv_temp <= to_integer(unsigned(pkt_ptr)) + 2;
+    addr_ptr <= std_logic_vector(to_unsigned(conv_temp, 9));
+
+end architecture;

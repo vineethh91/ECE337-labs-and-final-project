@@ -1,0 +1,20 @@
+   
+signal : enableStrobe : STD_LOGIC;
+signal : firstCount : STD_LOGIC;
+
+process(enable_timer)
+begin
+	enableStrobe = '1';
+	firstCount = '0';
+end process;
+
+process(clk)
+begin
+	if(enableStrobe = '1') and (firstCount = '0') then
+		wait for 0 ns;	
+	elsif(enableStrobe = '1') then
+		wait for period/2 ns;
+		shift_strobe = '1';
+	end if;
+end process;
+		

@@ -1,0 +1,165 @@
+-- $Id: $
+-- File name:   controller.vhd
+-- Created:     9/15/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: controller for the states and stuff
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+
+Entity controller is
+  port(
+    clk       : in std_logic;
+    nReset    : in std_logic;
+    dr        : in std_logic;
+    overflow  : in std_logic;
+    cnt_up    : out std_logic;
+    modwait   : out std_logic;
+    op        : out std_logic_vector (1 downto 0);
+    src1      : out std_logic_vector (3 downto 0);
+    src2      : out std_logic_vector (3 downto 0);
+    dest      : out std_logic_vector (3 downto 0);
+    err      : out std_logic);
+end controller;
+
+
+architecture archController of controller is
+  type state_type is (IDLE, STORE, SORT1, SORT2, SORT3, SORT4, ADD1, ADD2, ADD3, EIDLE);
+  signal  state, nextState : state_type;
+begin
+    
+  stateRegister : process(clk, nReset)
+  begin
+    if (nReset = '0') then
+      state <= IDLE;
+    elsif rising_edge(clk) then
+      state <= nextState;
+    end if;
+  end process stateRegister;
+
+  nextStateLogic: process(state, dr)
+  begin
+    nextState <= state;
+    modwait <= '1';
+    op <= "00";
+    err <= '0';
+    dest <= "0000";
+    src1 <= "0000";
+    src2 <= "0000";
+        
+    case state is
+     
+      when IDLE =>
+        modwait <= '0';
+        op <= "00";
+        err <= '0';
+        if( dr = '1') then
+          nextState <= STORE;
+        end if;
+        
+      when STORE =>
+        op <= "10";
+        dest <= "0101";
+        err <= '0';
+        if( dr = '1') then
+          nextState <= SORT1;
+        else
+          nextState <= EIDLE;
+        end if;
+        
+      when SORT1 =>
+        op <= "01";
+        src1 <= "0010";
+        dest <= "0001";
+        err <= '0';
+        nextState <= SORT2;
+      
+      when SORT2 =>
+        op <= "01";
+        err <= '0';
+        src1 <= "0011";
+        dest <= "0010";
+        nextState <= SORT3;
+      
+      when SORT3 =>
+        op <= "01";
+        err <= '0';
+        src1 <= "0100";
+        dest <= "0011";
+        nextState <= SORT4;
+        
+      when SORT4 =>
+        op <= "01";
+        err <= '0';
+        src1 <= "0101";
+        dest <= "0100";
+        nextState <= ADD1;
+      
+      when ADD1 =>
+        op <= "11";
+        err <= '0';
+        src1 <= "0001";
+        src2 <= "0010";
+        dest <= "0110";
+        if(overflow = '0') then
+          nextState <= ADD2;
+        else
+          nextState <= EIDLE;
+        end if;
+        
+      when ADD2 =>
+        op <= "11";
+        err <= '0';
+        src1 <= "0100";
+        src2 <= "0011";
+        dest <= "0111";
+        if(overflow = '0') then
+          nextState <= ADD3;
+        else
+          nextState <= EIDLE;
+        end if;
+      
+      when ADD3 =>
+        op <= "11";
+        err <= '0';
+        src1 <= "0111";
+        src2 <= "0110";
+        dest <= "0000";
+        if(overflow = '0') then
+          nextState <= IDLE;
+        else
+          nextState <= EIDLE;
+        end if;
+      
+      when EIDLE =>
+        modwait <= '0';
+        op <= "00";
+        err <= '1';
+        if( dr = '1') then
+          nextState <= STORE;
+        else
+          nextState <= EIDLE;
+        end if;
+        
+      when OTHERS =>
+        modwait <= '0';
+        err <= '0';
+        op <= "00";
+        src1 <= "0000";
+        src2 <= "0000";
+        dest <= "0000";
+      
+    end case;
+    
+  end process nextStateLogic;
+  
+  cnt_up <= '1' when (state = STORE) and (dr = '1') else '0';
+  
+--  O <= '1' when state = RCV1101 else '0';
+  
+
+  
+end archController;

@@ -1,0 +1,77 @@
+-- $Id: $
+-- File name:   tb_mini_timer.vhd
+-- Created:     11/20/2012
+-- Author:      Bryan Dallas
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_mini_timer is
+generic (Period : Time := 4.16 ns);
+end tb_mini_timer;
+
+architecture TEST of tb_mini_timer is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component mini_timer
+    PORT(
+         clk : in std_logic;
+         rst : in std_logic;
+         SRAM_control : out std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal rst : std_logic;
+  signal SRAM_control : std_logic;
+
+-- signal <name> : <type>;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: mini_timer port map(
+                clk => clk,
+                rst => rst,
+                SRAM_control => SRAM_control
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+
+    rst <= '0';
+    wait for 4.16 ns;
+    rst <= '1';
+    wait;
+
+  end process;
+end TEST;

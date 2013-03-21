@@ -1,0 +1,158 @@
+-- $Id: $
+-- File name:   tb_USB_Encoder.vhd
+-- Created:     11/18/2012
+-- Author:      Charles Werner
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_USB_Encoder is
+generic (Period : Time := 10 ns);
+end tb_USB_Encoder;
+
+architecture TEST of tb_USB_Encoder is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component USB_Encoder
+    PORT(
+         transmit_data : in std_logic;
+         clk : in std_logic;
+         rst_n : in std_logic;
+         shift_strobe : in std_logic;
+         eop_time : in std_logic;
+         bitstuff : in std_logic; 
+         data_plus : out std_logic;
+         data_minus : out std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal transmit_data : std_logic;
+  signal clk : std_logic;
+  signal rst_n : std_logic;
+  signal eop_time : std_logic;
+  signal bitstuff : std_logic;
+  signal shift_strobe : std_logic; 
+  signal data_plus : std_logic;
+  signal data_minus : std_logic;
+
+-- signal <name> : <type>;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: USB_Encoder port map(
+                transmit_data => transmit_data,
+                clk => clk,          
+                rst_n => rst_n,
+                shift_strobe => shift_strobe,
+                eop_time => eop_time,
+                bitstuff => bitstuff,
+                data_plus => data_plus,
+                data_minus => data_minus
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+
+    transmit_data <= '0'; 
+    rst_n <= '0';
+    shift_strobe <= '0'; 
+    bitstuff <= '0';
+    eop_time <= '0';
+    wait for 10 ns;
+    rst_n <= '1'; 
+    wait for 20 ns;
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    wait for 10 ns;
+    shift_strobe <= '1';
+    wait for 10 ns; 
+    shift_strobe <= '0';
+    wait for 10 ns;
+    bitstuff <= '1';
+    wait for 10 ns;
+    bitstuff <= '0'; 
+    wait for 10 ns;
+    
+    rst_n <= '0'; 
+    wait for 5 ns; 
+    transmit_data <= '1'; 
+    wait for 5 ns; 
+    rst_n <= '1';  
+    wait for 10 ns;     
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    wait for 10 ns;
+    shift_strobe <= '1';
+    wait for 10 ns; 
+    shift_strobe <= '0';
+    wait for 10 ns;
+    bitstuff <= '1';
+    wait for 10 ns;
+    bitstuff <= '0'; 
+    wait for 10 ns;
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    wait for 10 ns;
+    shift_strobe <= '1';
+    wait for 10 ns; 
+    shift_strobe <= '0';    
+    
+    
+    wait for 80 ns; 
+    rst_n <= '0';
+    wait for 5 ns;
+    transmit_data <= '0';
+    wait for 5 ns;
+    rst_n <= '1';
+    wait for 20 ns;
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    transmit_data <= '1';
+    wait for 20 ns;
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    transmit_data <= '0';
+    wait for 20 ns;
+    shift_strobe <= '1';
+    wait for 10 ns;
+    shift_strobe <= '0';
+    
+    wait; 
+
+  end process;
+end TEST;

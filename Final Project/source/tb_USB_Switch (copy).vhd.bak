@@ -1,0 +1,564 @@
+-- $Id: $
+-- File name:   tb_USB_Switch.vhd
+-- Created:     11/30/2012
+-- Author:      Bryan Dallas
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_USB_Switch is
+generic (Period : Time := 4.16 ns);
+end tb_USB_Switch;
+
+architecture TEST of tb_USB_Switch is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component USB_Switch
+    PORT(
+         clk : in std_logic;
+         nRst : in std_logic;
+         USB1_DP : inout std_logic;
+         USB1_DM : inout std_logic;
+         USB2_DP : inout std_logic;
+         USB2_DM : inout std_logic;
+         USB3_DP : inout std_logic;
+         USB3_DM : inout std_logic;
+         USB4_DP : inout std_logic;
+         USB4_DM : inout std_logic;
+         USB5_DP : inout std_logic;
+         USB5_DM : inout std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal nRst : std_logic;
+  signal USB1_DP : std_logic;
+  signal USB1_DM : std_logic;
+  signal USB2_DP : std_logic;
+  signal USB2_DM : std_logic;
+  signal USB3_DP : std_logic;
+  signal USB3_DM : std_logic;
+  signal USB4_DP : std_logic;
+  signal USB4_DM : std_logic;
+  signal USB5_DP : std_logic;
+  signal USB5_DM : std_logic;
+
+-- signal <name> : <type>;
+  signal currentTestByte : std_logic_vector(7 downto 0);
+  constant NUM_TEST_CASES	: natural := 2;		-- Set this constnat to always be the number of test cases you want to run
+  
+  	type test_case is
+		record
+			packet_type : string; -- Type of packet
+			address : std_logic_vector(7 downto 0); -- Address of recieving device
+			data_byte_length : natural; -- length of data in bytes
+			data : std_logic_vector(data_byte_length*8-1 downto 0); -- the data to send
+		end record;
+	
+	type test_case_array is array(1 to NUM_TEST_CASES) of test_case;
+	
+	constant	test_cases : test_case_array := (	
+																							("SETUP", "11001110", 0, ""),
+																							("DATA0", "11001110", 8, "110011000011001111100000011110101010010101011110001000011101")
+																						);
+
+ procedure send_byte_serially_nzri(data : std_logic_vector(7 downto 0); signal dplus	: inout std_logic;
+		      signal dminus : inout std_logic; signal dplus2	: inout std_logic;
+		      signal dminus2 : inout std_logic; signal currTestByte : inout std_logic_vector(7 downto 0)) is
+		      signal lineval : std_logic;
+		      signal count : Integer;
+    begin
+    currTestByte <= data;
+    lineval <= dplus;
+	-- Send data bits
+	for i in 0 to 7 loop
+	    -- bit stuffing
+	    if (count = 6) then
+	        lineval <= not lineval;
+	        dplus <= lineval;
+       	    dminus <= not lineval;
+            wait for 20*Period; -- Hold value for one bit length --> 20*4.16ns = 1 USB Bit leng
+        end if;
+        
+        --encoding
+	    if (data(i) = '1') then
+       	   lineval <= not lineval;
+       	   dminus2 <= not data(i);
+       	else
+            count <= count + 1;
+        end if;
+	    dplus <= lineval;
+       	dminus <= not lineval;
+        wait for 20*Period; -- Hold value for one bit length --> 20*4.16ns = 1 USB Bit length
+    end loop;
+  end procedure send_byte_serially;
+  
+  procedure run_test_case(packet_type : in string;
+                          address     : in (7 downto 0);
+                          data_byte_length : in natural;
+                          data             : in (data_byte_length*8-1 downto 0);
+   ) is
+	begin
+	end procedure run_test_case;
+  
+  signal null1, null2 : std_logic;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: USB_Switch port map(
+                clk => clk,
+                nRst => nRst,
+                USB1_DP => USB1_DP,
+                USB1_DM => USB1_DM,
+                USB2_DP => USB2_DP,
+                USB2_DM => USB2_DM,
+                USB3_DP => USB3_DP,
+                USB3_DM => USB3_DM,
+                USB4_DP => USB4_DP,
+                USB4_DM => USB4_DM,
+                USB5_DP => USB5_DP,
+                USB5_DM => USB5_DM
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+  
+    nRst <= '0';
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    USB3_DP <= '1';
+    USB3_DM <= '1';
+    USB4_DP <= '1';
+    USB4_DM <= '1';
+    USB5_DP <= '1';
+    USB5_DM <= '1';
+    wait for 5 ns;
+    nRst <= '1';
+    wait for 10*Period;
+    
+
+------------------------------------------------------START OF SETUP PACKET------------------------------------------------------------------------------
+
+    send_byte_serially("00101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SETUP SYNC byte
+
+    send_byte_serially("00011011", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SETUP PID
+  
+    send_byte_serially("11010110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND THE MASTER ADDRESS
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+------------------------------------------------------END OF SETUP PACKET------------------------------------------------------------------------------
+    
+    
+------------------------------------------------------START OF OUT PACKET------------------------------------------------------------------------------
+
+    send_byte_serially("00101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- MDATA SYNC byte
+    send_byte_serially("00000101", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- MDATA PID-
+
+    -- Bit 1
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 2
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Skipped Bit 3
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 3
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 4
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 5
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 6
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 7
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 8
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for 20*Period;
+ 
+    --send_byte_serially("01010100", d_plusin, d_minusin, currentTestByte); -- MDATA ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for 20*Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+
+    send_byte_serially("00101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- OUT SYNC byte
+    send_byte_serially("10100001", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- OUT PID
+  
+    send_byte_serially("11111011", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- OUT ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    
+    --wait for 5*Period;
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+   
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+   
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for 20*Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+
+------------------------------------------------------END OF OUT PACKET------------------------------------------------------------------------------
+    
+    
+
+
+------------------------------------------------------START OF IN PACKET-----------------------------------------------------------------------------
+--wait for Period;
+    send_byte_serially("00101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- MDATA SYNC byte
+    send_byte_serially("00000101", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- MDATA PID
+    
+    -- Bit 1
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 2
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Skipped Bit 3
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 3
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 4
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 5
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 6
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+    
+    -- Bit 7
+    USB1_DP <= '1';
+    USB1_DM <= '0';
+    USB2_DP <= '1';
+    USB2_DM <= '0';
+    wait for 20*Period;
+    
+    -- Bit 8
+    USB1_DP <= '0';
+    USB1_DM <= '1';
+    USB2_DP <= '0';
+    USB2_DM <= '1';
+    wait for 20*Period;
+ 
+    --send_byte_serially("01010100", d_plusin, d_minusin, currentTestByte); -- MDATA ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+     USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+
+
+    send_byte_serially("00101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- IN SYNC byte
+    send_byte_serially("00100111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- IN PID
+    
+    send_byte_serially("10101011", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- IN ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+   
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period; 
+    
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101111", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10111110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("10101010", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+    send_byte_serially("11101110", USB1_DP, USB1_DM, USB2_DP, USB2_DM, currentTestByte);
+   
+    USB1_DP <= '0';
+    USB1_DM <= '0';
+    USB2_DP <= '0';
+    USB2_DM <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    wait for Period;
+
+------------------------------------------------------END OF IN PACKET------------------------------------------------------------------------------
+
+
+  end process;
+end TEST;

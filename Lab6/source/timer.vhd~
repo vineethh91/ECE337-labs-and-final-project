@@ -1,0 +1,27 @@
+-- $Id: $
+-- File name:   timer.vhd
+-- Created:     9/29/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: timer block
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+
+entity timer is
+  port(
+    clk : in std_logic;
+    rst_n : in std_logic;
+    rising_edge_found : in std_logic;
+    falling_edge_found : in std_logic;
+    stop_found : in std_logic;
+    start_found : in std_logic;
+    byte_received : out std_logic;
+    ack_prep : out std_logic;
+    check_ack : out std_logic;
+    ack_done : out std_logic
+    );
+end entity timer;
+  

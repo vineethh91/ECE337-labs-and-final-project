@@ -1,0 +1,395 @@
+-- $Id: $
+-- File name:   tb_USB_Switch.vhd
+-- Created:     11/30/2012
+-- Author:      Bryan Dallas
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+USE ieee.math_real.ALL;   -- for UNIFORM, TRUNC functions
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_USB_Switch is
+generic (Period : Time := 4.16 ns);
+end tb_USB_Switch;
+
+architecture TEST of tb_USB_Switch is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component USB_Switch
+    PORT(
+    clk : in std_logic;
+    nRst : in std_logic;
+    USB1_DP : inout std_logic;
+    USB1_DM : inout std_logic;
+    USB2_DP : inout std_logic;
+    USB2_DM : inout std_logic;
+    USB3_DP : inout std_logic;
+    USB3_DM : inout std_logic;
+    USB4_DP : inout std_logic;
+    USB4_DM : inout std_logic;
+    USB5_DP : inout std_logic;
+    USB5_DM : inout std_logic;
+    read_out11 : in std_logic_vector(7 downto 0);
+    read_out12 : in std_logic_vector(7 downto 0);
+    read_out13 : in std_logic_vector(7 downto 0); 
+    read_out14 : in std_logic_vector(7 downto 0);
+    SRAM1_addr1 : out std_logic_vector(8 downto 0);
+    SRAM2_addr1 : out std_logic_vector(8 downto 0);
+    SRAM3_addr1 : out std_logic_vector(8 downto 0); 
+    SRAM4_addr1 : out std_logic_vector(8 downto 0);
+    Write_Enable11 : out std_logic;	
+    Write_Enable12 : out std_logic;
+    Write_Enable13 : out std_logic;
+    Write_Enable14 : out std_logic;
+    BUS_VAL11	  : out std_logic_vector (7 downto 0);
+    BUS_VAL12	  : out std_logic_vector (7 downto 0);
+    BUS_VAL13	  : out std_logic_vector (7 downto 0);
+    BUS_VAL14	  : out std_logic_vector (7 downto 0);
+    read_enable1 : out std_logic;
+    read_out21 : in std_logic_vector(7 downto 0);
+    read_out22 : in std_logic_vector(7 downto 0);
+    read_out23 : in std_logic_vector(7 downto 0); 
+    read_out24 : in std_logic_vector(7 downto 0);
+    SRAM1_addr2 : out std_logic_vector(8 downto 0);
+    SRAM2_addr2 : out std_logic_vector(8 downto 0);
+    SRAM3_addr2 : out std_logic_vector(8 downto 0); 
+    SRAM4_addr2 : out std_logic_vector(8 downto 0);
+    Write_Enable21 : out std_logic;	
+    Write_Enable22 : out std_logic;
+    Write_Enable23 : out std_logic;
+    Write_Enable24 : out std_logic;
+    BUS_VAL21	  : out std_logic_vector (7 downto 0);
+    BUS_VAL22	  : out std_logic_vector (7 downto 0);
+    BUS_VAL23	  : out std_logic_vector (7 downto 0);
+    BUS_VAL24	  : out std_logic_vector (7 downto 0);
+    read_enable2 : out std_logic;
+    read_out31 : in std_logic_vector(7 downto 0);
+    read_out32 : in std_logic_vector(7 downto 0);
+    read_out33 : in std_logic_vector(7 downto 0); 
+    read_out34 : in std_logic_vector(7 downto 0);
+    SRAM1_addr3 : out std_logic_vector(8 downto 0);
+    SRAM2_addr3 : out std_logic_vector(8 downto 0);
+    SRAM3_addr3 : out std_logic_vector(8 downto 0); 
+    SRAM4_addr3 : out std_logic_vector(8 downto 0);
+    Write_Enable31 : out std_logic;	
+    Write_Enable32 : out std_logic;
+    Write_Enable33 : out std_logic;
+    Write_Enable34 : out std_logic;
+    BUS_VAL31	  : out std_logic_vector (7 downto 0);
+    BUS_VAL32	  : out std_logic_vector (7 downto 0);
+    BUS_VAL33	  : out std_logic_vector (7 downto 0);
+    BUS_VAL34	  : out std_logic_vector (7 downto 0);
+    read_enable3 : out std_logic;
+    read_out41 : in std_logic_vector(7 downto 0);
+    read_out42 : in std_logic_vector(7 downto 0);
+    read_out43 : in std_logic_vector(7 downto 0); 
+    read_out44 : in std_logic_vector(7 downto 0);
+    SRAM1_addr4 : out std_logic_vector(8 downto 0);
+    SRAM2_addr4 : out std_logic_vector(8 downto 0);
+    SRAM3_addr4 : out std_logic_vector(8 downto 0); 
+    SRAM4_addr4 : out std_logic_vector(8 downto 0);
+    Write_Enable41 : out std_logic;	
+    Write_Enable42 : out std_logic;
+    Write_Enable43 : out std_logic;
+    Write_Enable44 : out std_logic;
+    BUS_VAL41	  : out std_logic_vector (7 downto 0);
+    BUS_VAL42	  : out std_logic_vector (7 downto 0);
+    BUS_VAL43	  : out std_logic_vector (7 downto 0);
+    BUS_VAL44	  : out std_logic_vector (7 downto 0);
+    read_enable4 : out std_logic;
+    read_out51 : in std_logic_vector(7 downto 0);
+    read_out52 : in std_logic_vector(7 downto 0);
+    read_out53 : in std_logic_vector(7 downto 0); 
+    read_out54 : in std_logic_vector(7 downto 0);
+    SRAM1_addr5 : out std_logic_vector(8 downto 0);
+    SRAM2_addr5 : out std_logic_vector(8 downto 0);
+    SRAM3_addr5 : out std_logic_vector(8 downto 0); 
+    SRAM4_addr5 : out std_logic_vector(8 downto 0);
+    Write_Enable51 : out std_logic;	
+    Write_Enable52 : out std_logic;
+    Write_Enable53 : out std_logic;
+    Write_Enable54 : out std_logic;
+    BUS_VAL51	  : out std_logic_vector (7 downto 0);
+    BUS_VAL52	  : out std_logic_vector (7 downto 0);
+    BUS_VAL53	  : out std_logic_vector (7 downto 0);
+    BUS_VAL54	  : out std_logic_vector (7 downto 0);
+    read_enable5 : out std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal nRst : std_logic;
+  signal USB1_DP : std_logic;
+  signal USB1_DM : std_logic;
+  signal USB2_DP : std_logic;
+  signal USB2_DM : std_logic;
+  signal USB3_DP : std_logic;
+  signal USB3_DM : std_logic;
+  signal USB4_DP : std_logic;
+  signal USB4_DM : std_logic;
+  signal USB5_DP : std_logic;
+  signal USB5_DM : std_logic;
+
+-- signal <name> : <type>;
+  signal currentTestByte : std_logic_vector(7 downto 0);
+  constant NUM_TEST_CASES	: natural := 3;		-- Set this constnat to always be the number of test cases you want to run
+  
+  type packet_t is (SETUP_P, OUT_P, IN_P);
+  
+  	type test_case is
+		record
+			packet_type : packet_t; -- Type of packet
+			address : std_logic_vector(7 downto 0); -- Address of recieving device
+			data_byte_length : integer range 0 to 64; -- length of data in bytes
+			data : std_logic_vector(7 downto 0); -- the data to send
+		end record;
+	
+	type test_case_array is array(1 to NUM_TEST_CASES) of test_case;
+	
+	constant	test_cases : test_case_array := (	
+																							(SETUP_P, "11001110", 0, "00000000"),
+																							(OUT_P, "11001110", 8, "00000000"),
+																							(IN_P, "11001110", 0, "00000011")
+																						);
+
+ procedure send_byte_serially_nrzi(data : std_logic_vector(7 downto 0); signal dplus	: inout std_logic;
+		      signal dminus : inout std_logic; signal currTestByte : inout std_logic_vector(7 downto 0)) is
+		      variable lineval : std_logic;
+		      variable count : Integer;
+    begin
+    currTestByte <= data;
+    lineval := dplus;
+	-- Send data bits
+	for i in 0 to 7 loop
+	    -- bit stuffing
+	    if (count = 5) then
+	        lineval := not lineval;
+	        dplus <= lineval;
+       	    dminus <= not lineval;
+       	    count := 0;
+            wait for 20*Period; -- Hold value for one bit length --> 20*4.16ns = 1 USB Bit leng
+        end if;
+        
+        --encoding
+	    if (data(i) = '0') then
+       	   lineval := not lineval;
+       	else
+           count := count + 1;
+        end if;
+	    dplus <= lineval;
+       	dminus <= not lineval;
+        wait for 20*Period; -- Hold value for one bit length --> 20*4.16ns = 1 USB Bit length
+    end loop;
+  end procedure send_byte_serially_nrzi;
+  
+    procedure run_test_case( mycase : test_case; signal data_p : inout std_logic; signal data_m : inout std_logic; signal curr_byte : inout std_logic_vector(7 downto 0) ) is
+        -- Random generation taken from the site: http://www.markharvey.info/vhdl/rnd/rnd.html
+        VARIABLE seed1, seed2: positive;               -- Seed values for random generator
+        VARIABLE rand: real;                           -- Random real-number value in range 0 to 1.0
+        VARIABLE int_rand: integer;                    -- Random integer value in range 0..4095
+        VARIABLE stim: std_logic_vector(7 DOWNTO 0);  -- Random 12-bit stimulus
+    begin
+        if (mycase.packet_type = SETUP_P) then
+            -- Setup Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("11010010", data_p, data_m, curr_byte); -- SETUP PID
+            send_byte_serially_nrzi(mycase.address, data_p, data_m, curr_byte); -- Address
+            send_byte_serially_nrzi("00000111", data_p, data_m, curr_byte); -- Endpoint & CRC5
+
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- Data 0 Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("00111100", data_p, data_m, curr_byte); -- Data 0 PID
+            
+            for i in 0 to 7 loop -- Insert Random Data
+                UNIFORM(seed1, seed2, rand);                                   -- generate random number
+                int_rand := INTEGER(TRUNC(rand*255.0));                       -- rescale to 0..255, find integer part
+                stim := std_logic_vector(to_unsigned(int_rand, stim'LENGTH));  -- convert to std_logic_vector
+                send_byte_serially_nrzi(stim, data_p, data_m, curr_byte);
+            end loop;
+            
+            send_byte_serially_nrzi("11100011", data_p, data_m, curr_byte); -- CRC16
+            send_byte_serially_nrzi("10101010", data_p, data_m, curr_byte); -- CRC16 Part 2
+            
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- Wait for ACK
+            data_p <= 'Z';
+            data_m <= 'Z';
+            
+            wait for 380*Period; -- Wait for 4 bit times
+        elsif (mycase.packet_type = OUT_P) then
+            -- OUT Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("00011110", data_p, data_m, curr_byte); -- OUT PID
+            send_byte_serially_nrzi(mycase.address, data_p, data_m, curr_byte); -- Address
+            send_byte_serially_nrzi("00000111", data_p, data_m, curr_byte); -- Endpoint & CRC5
+            
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- Data 0 Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("00111100", data_p, data_m, curr_byte); -- Data 0 PID
+            
+            for i in 0 to mycase.data_byte_length loop -- Insert Random Data
+                UNIFORM(seed1, seed2, rand);                                   -- generate random number
+                int_rand := INTEGER(TRUNC(rand*255.0));                       -- rescale to 0..255, find integer part
+                stim := std_logic_vector(to_unsigned(int_rand, stim'LENGTH));  -- convert to std_logic_vector
+                send_byte_serially_nrzi(stim, data_p, data_m, curr_byte);
+            end loop;
+            
+            send_byte_serially_nrzi("11100011", data_p, data_m, curr_byte); -- CRC16
+            send_byte_serially_nrzi("10101010", data_p, data_m, curr_byte); -- CRC16 Part 2
+            
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- Wait for ACK
+            data_p <= 'Z';
+            data_m <= 'Z';
+            
+            wait for 380*Period; -- Wait for 4 bit times
+        elsif (mycase.packet_type = IN_P) then
+            -- MDATA Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("11110000", data_p, data_m, curr_byte); -- MDATA PID
+            send_byte_serially_nrzi(mycase.address, data_p, data_m, curr_byte); -- Address
+            send_byte_serially_nrzi("00000111", data_p, data_m, curr_byte); -- Endpoint & CRC5
+            
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- Data 0 Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("00111100", data_p, data_m, curr_byte); -- Data 0 PID
+            send_byte_serially_nrzi(mycase.data, data_p, data_m, curr_byte); -- Address to Port
+            send_byte_serially_nrzi("11100011", data_p, data_m, curr_byte); -- CRC16
+            send_byte_serially_nrzi("10101010", data_p, data_m, curr_byte); -- CRC16 Part 2
+            
+            --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+            
+            -- IN Packet
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("10010110", data_p, data_m, curr_byte); -- IN PID
+            send_byte_serially_nrzi(mycase.address, data_p, data_m, curr_byte); -- Address
+            send_byte_serially_nrzi("00000111", data_p, data_m, curr_byte); -- Endpoint & CRC5
+            
+
+            
+            -- Wait for DATA
+            data_p <= 'Z';
+            data_m <= 'Z';
+            
+            wait for 80*Period; -- Wait for 4 bit times
+            
+            send_byte_serially_nrzi("10000000", data_p, data_m, curr_byte); -- Sync
+            send_byte_serially_nrzi("00101101", data_p, data_m, curr_byte); -- ACK PID
+            
+                        --EOP
+            data_p <= '0';
+            data_m <= '0';
+            wait for 40*Period; -- Wait for 2 bit times
+            data_p <= '1';
+            wait for 20*Period; -- Wait for 1 bit time
+        end if;
+    end procedure run_test_case;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: USB_Switch port map(
+                clk => clk,
+                nRst => nRst,
+                USB1_DP => USB1_DP,
+                USB1_DM => USB1_DM,
+                USB2_DP => USB2_DP,
+                USB2_DM => USB2_DM,
+                USB3_DP => USB3_DP,
+                USB3_DM => USB3_DM,
+                USB4_DP => USB4_DP,
+                USB4_DM => USB4_DM,
+                USB5_DP => USB5_DP,
+                USB5_DM => USB5_DM
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+  
+    nRst <= '0';
+    USB1_DP <= '1';
+    USB1_DM <= '1';
+    USB2_DP <= '1';
+    USB2_DM <= '1';
+    USB3_DP <= '1';
+    USB3_DM <= '1';
+    USB4_DP <= '1';
+    USB4_DM <= '1';
+    USB5_DP <= '1';
+    USB5_DM <= '1';
+    wait for 5 ns;
+    nRst <= '1';
+    wait for 10*Period;
+    
+    -- run test cases
+    for i in 1 to NUM_TEST_CASES loop
+        run_test_case(test_cases(i), USB1_DP, USB1_DM, currentTestByte);
+    end loop;
+
+
+  end process;
+end TEST;

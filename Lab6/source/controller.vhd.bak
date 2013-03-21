@@ -1,0 +1,203 @@
+-- $Id: $
+-- File name:   controller.vhd
+-- Created:     9/29/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: controller block
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+
+entity controller is
+  port (
+      clk : in std_logic;
+      rst_n : in std_logic;
+      stop_found : in std_logic;
+      start_found : in std_logic;
+      byte_received : in std_logic;
+      ack_prep : in std_logic;
+      check_ack : in std_logic;
+      ack_done : in std_logic;
+      rw_mode : in std_logic;
+      address_match : in std_logic;
+      sda_in : in std_logic;
+      rx_enable : out std_logic;
+      tx_enable : out std_logic;
+      read_enable : out std_logic;
+      sda_mode : out std_logic_vector(1 downto 0);
+      load_data : out std_logic
+  );
+end entity controller;
+
+architecture archController of controller is
+
+  type state_type is (IDLE, WAIT_FOR_ADDRESS_BYTE, CHECK_ADDRESS_RWMODE, ACK, ENABLE_LOAD_DATA, TRANSMIT_DATA, ACK_CHECK, CHECK_MASTER_ACK, ACKED, CHANGE_FIFO, NACKED);
+  signal state, nextState : state_type;
+begin
+  stateRegister : process(clk, rst_n)
+  begin
+    if (rst_n = '0') then
+      state <= IDLE;
+    elsif rising_edge(clk) then
+      state <= nextState;
+    end if;
+  end process stateRegister;
+
+  stateMachine : process(state, start_found, stop_found, byte_received, address_match, rw_mode, ack_done, check_ack, sda_in)
+  begin
+    nextState <= state;
+    
+    case state is 
+    
+	when IDLE =>
+		if(start_found = '1') then
+			nextState <= WAIT_FOR_ADDRESS_BYTE;
+		end if;
+	
+	when WAIT_FOR_ADDRESS_BYTE =>
+		if(byte_received = '1') then
+			nextState <= CHECK_ADDRESS_RWMODE;
+		end if;
+
+	when CHECK_ADDRESS_RWMODE =>
+		if((address_match = '1') and (rw_mode = '1')) then
+			nextState <= ACK;
+		elsif((rw_mode = '0') or (address_match = '0')) then
+			nextState <=  IDLE;
+		end if;
+
+	when ACK =>
+		if(ack_done = '1') then
+			nextState <= ENABLE_LOAD_DATA;
+		end if;
+	
+	when ENABLE_LOAD_DATA =>
+		nextState <= TRANSMIT_DATA;
+	
+	when TRANSMIT_DATA =>
+		if(byte_received = '1') then
+			nextState <= ACK_CHECK;
+		end if;
+
+	when ACK_CHECK =>
+		if(check_ack = '1') then
+			nextState <= CHECK_MASTER_ACK;
+		end if;
+	
+	when CHECK_MASTER_ACK =>
+		if(sda_in = '0') then
+			nextState <= ACKED;
+		elsif(sda_in = '1') then
+			nextState <= NACKED;
+		end if;
+
+	when ACKED =>
+		if(ack_done = '1') then
+			nextState <= CHANGE_FIFO;
+		end if;
+
+	when CHANGE_FIFO =>
+		nextState <= ENABLE_LOAD_DATA;
+	
+	when NACKED =>
+		if(start_found = '1') then
+			nextState <= WAIT_FOR_ADDRESS_BYTE;
+		elsif(stop_found = '1') then
+			nextState <= IDLE;
+		end if;
+	
+	when OTHERS => 
+		nextState <= IDLE;
+
+			
+  
+    end case;
+  end process;
+
+  outputLogic : process(state)
+  begin
+    case state is 
+    
+	when IDLE =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+	
+	when WAIT_FOR_ADDRESS_BYTE =>
+		rx_enable <= '1';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+
+	when CHECK_ADDRESS_RWMODE =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+
+	when ACK =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "01";
+	
+	when ENABLE_LOAD_DATA =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '1';
+		sda_mode <= "00";
+	
+	when TRANSMIT_DATA =>
+		rx_enable <= '0';
+		tx_enable <= '1';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "11";
+
+	when ACK_CHECK =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+	
+	when CHECK_MASTER_ACK =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+
+	when ACKED =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "00";
+
+	when CHANGE_FIFO =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '1';
+		load_data <= '0';
+		sda_mode <= "00";
+	
+	when NACKED =>
+		rx_enable <= '0';
+		tx_enable <= '0';
+		read_enable <= '0';
+		load_data <= '0';
+		sda_mode <= "10";
+
+   end case;
+  end process;
+
+end archController;

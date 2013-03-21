@@ -1,0 +1,25 @@
+Question 1 :
+data_ready must remain asserted for atleast 2 clock cycles after being asserted to ensure correct operation. This is because it takes one clock cycle to move to the STORE state and another clock cycle within which the data is stored into the register, during both of which it must remain asserteed.
+
+Data must remain valid for atleast one clock cycle because its a 16 bit data bus that stores the data into the register.
+
+Question 2 :
+idle:  if (data_ready=0) goto idle ; wait until data_ready=1
+store: if (data_ready=0) goto eidle
+       reg[5] = data ; Store data in a register
+       err = 0 ; reset error
+sort1: reg[1] = reg[2] ; Reorder registers
+sort2: reg[2] = reg[3] ; Reorder registers
+sort3: reg[3] = reg[4] ; Reorder registers
+sort4: reg[4] = reg[5] ; Reorder registers
+mul1:  reg[6] = reg[1] * reg[3] ; mul data, store result
+       if (V) goto eidle ; On overflow, err condition
+mul2:  reg[7] = reg[2] * reg[4] ; mul data, store result
+       if (V) goto eidle ; On overflow, err condition
+add3:  reg[0] = reg[6] + reg[7] ; Add data, store result
+       if (V) goto eidle ; On overflow, err condition
+       goto idle
+eidle: err = 1
+       if (data_ready=1) goto store; wait until data_ready=1
+       if (data_ready=0) goto eidle
+

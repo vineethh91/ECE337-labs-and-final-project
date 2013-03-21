@@ -1,0 +1,137 @@
+-- $Id: $
+-- File name:   tb_rcu.vhd
+-- Created:     9/25/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_rcu is
+generic (Period : Time := 2.5 ns);
+end tb_rcu;
+
+architecture TEST of tb_rcu is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component rcu
+    PORT(
+         clk : in std_logic;
+         rst : in std_logic;
+         start_bit_detected : in std_logic;
+         packet_done : in std_logic;
+         framing_error : in std_logic;
+         sbc_clear : out std_logic;
+         sbc_enable : out std_logic;
+         load_buffer : out std_logic;
+         enable_timer : out std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal rst : std_logic;
+  signal start_bit_detected : std_logic;
+  signal packet_done : std_logic;
+  signal framing_error : std_logic;
+  signal sbc_clear : std_logic;
+  signal sbc_enable : std_logic;
+  signal load_buffer : std_logic;
+  signal enable_timer : std_logic;
+
+-- signal <name> : <type>;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: rcu port map(
+                clk => clk,
+                rst => rst,
+                start_bit_detected => start_bit_detected,
+                packet_done => packet_done,
+                framing_error => framing_error,
+                sbc_clear => sbc_clear,
+                sbc_enable => sbc_enable,
+                load_buffer => load_buffer,
+                enable_timer => enable_timer
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+    start_bit_detected <= '0';
+    packet_done <= '0';
+    framing_error <= '0';
+    rst <= '0';
+
+    wait for 5 ns;
+    rst <= '1';
+    wait for 5 ns;
+    rst <= '0';
+--    wait for 20 ns;
+    
+    start_bit_detected <= '1';
+    wait for 5 ns;
+    start_bit_detected <= '0';
+
+    wait for 30 ns;
+    packet_done <= '1';
+    wait for 5 ns;
+    packet_done <= '0';
+
+    wait for 20 ns;
+    framing_error <= '0';
+    
+    
+    wait for 20 ns;
+    rst <= '1';
+    wait for 5 ns;
+    rst <= '0';
+
+    
+    start_bit_detected <= '1';
+    wait for 5 ns;
+    start_bit_detected <= '0';
+
+    wait for 30 ns;
+    packet_done <= '1';
+    framing_error <= '1';
+    wait for 5 ns;
+    packet_done <= '0'; 
+    start_bit_detected <= '1';
+    wait for 5 ns;
+    framing_error <= '0';
+    
+    wait for 10 ns;
+    
+    packet_done <= '1';
+    rst <= '0';
+
+  end process;
+end TEST;

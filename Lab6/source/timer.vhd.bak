@@ -1,0 +1,215 @@
+-- $Id: $
+-- File name:   timer.vhd
+-- Created:     9/29/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: timer block
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+
+entity timer is
+  port(
+    clk : in std_logic;
+    rst_n : in std_logic;
+    rising_edge_found : in std_logic;
+    falling_edge_found : in std_logic;
+    stop_found : in std_logic;
+    start_found : in std_logic;
+    byte_received : out std_logic;
+    ack_prep : out std_logic;
+    check_ack : out std_logic;
+    ack_done : out std_logic
+    );
+end entity timer;
+  
+architecture archTimer of timer is
+
+  type state_type is (IDLE, START_MACHINE, READ_BIT_1, READ_BIT_2, READ_BIT_3, READ_BIT_4, READ_BIT_5, READ_BIT_6, READ_BIT_7, READ_BIT_8, CHECKACK, PREPACK, ACKDONE);
+  signal state, nextState : state_type;
+begin
+  stateRegister : process(clk, rst_n)
+  begin
+    if (rst_n = '0') then
+      state <= IDLE;
+    elsif rising_edge(clk) then
+      state <= nextState;
+    end if;
+  end process stateRegister;
+
+  stateMachine : process(state, clk, start_found, falling_edge_found, rising_edge_found, stop_found)
+  begin
+    nextState <= state;
+    
+    case state is 
+      
+      when IDLE =>
+        if(start_found = '1') then
+          nextState <= START_MACHINE;
+        end if;
+
+      when START_MACHINE =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_1;
+	end if;
+
+      when READ_BIT_1 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_2;
+	end if;
+
+      when READ_BIT_2 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_3;
+	end if;
+
+      when READ_BIT_3 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_4;
+	end if;
+
+      when READ_BIT_4 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_5;
+	end if;
+
+      when READ_BIT_5 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_6;
+	end if;
+
+      when READ_BIT_6 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_7;
+	end if;
+
+      when READ_BIT_7 =>
+	if(rising_edge_found = '1') then
+	  nextState <= READ_BIT_8;
+	end if;
+
+      when READ_BIT_8 =>
+	if(falling_edge_found = '1') then
+	  nextState <= PREPACK;
+	end if;
+
+      when PREPACK =>
+	if(rising_edge_found = '1') then
+	  nextState <= CHECKACK;
+	end if;
+
+      when CHECKACK =>
+	if(falling_edge_found = '1') then
+	  nextState <= ACKDONE;
+	end if;
+
+      when ACKDONE =>
+	if(stop_found = '1') then
+	  nextState <= IDLE;
+	elsif(start_found = '1') then
+	  nextState <= START_MACHINE;
+	elsif(rising_edge_found = '1') then
+	  nextState <= READ_BIT_1;
+	end if;
+
+        end case;
+	end process;
+
+  outputLogic : process(state)
+  begin
+    
+    case state is 
+      
+      when IDLE =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+      when START_MACHINE =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+	
+      when READ_BIT_1 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+      when READ_BIT_2 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_3 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_4 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_5 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_6 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_7 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when READ_BIT_8 =>
+	byte_received <= '0';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when PREPACK =>
+	byte_received <= '1';
+	ack_prep <= '1';
+	check_ack <= '0';
+	ack_done <= '0';
+
+
+      when CHECKACK =>
+	byte_received <= '1';
+	ack_prep <= '0';
+	check_ack <= '1';
+	ack_done <= '0';
+
+
+      when ACKDONE =>
+	byte_received <= '1';
+	ack_prep <= '0';
+	check_ack <= '0';
+	ack_done <= '1';
+
+
+      end case;
+   end process;
+end archTimer;

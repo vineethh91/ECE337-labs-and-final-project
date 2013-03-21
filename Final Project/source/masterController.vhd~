@@ -1,0 +1,828 @@
+-- $Id: $
+-- File name:   masterController.vhd
+-- Created:     11/13/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Design Entry
+-- Description: Master Controller
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+USE IEEE.numeric_std.ALL;
+
+entity masterController is
+  generic ( address : std_logic_vector(7 downto 0) := "00000001" );
+  port (
+      clk : in std_logic;
+      rst_n : in std_logic;
+      byte_done : in std_logic; -- from USB Rx
+      eopDetect : in std_logic; -- from USB Tx
+      usb_data : in std_logic_vector(7 downto 0); -- from USB Rx
+      sram_control : in std_logic; -- from SRAM
+      sram_data_out : in std_logic_vector(7 downto 0); -- from SRAM
+      next_byte : in std_logic;  -- from USB Tx
+      
+      master_address : out std_logic_vector(7 downto 0); -- to bus controller
+      load_data : out std_logic; -- to USB Tx
+      tx_enable : out std_logic; -- to USB Tx
+      data_transmission_live : out std_logic; -- to Bus_Data line
+      byte_strobe : out std_logic; -- to Bus_Data line
+      bus_data : out std_logic_vector(7 downto 0); -- to Bus_Data line
+      sram_select : out std_logic_vector(1 downto 0); -- to SRAM module
+      sram_address : out std_logic_vector(8 downto 0); -- to SRAM module
+      read_enable : out std_logic -- to SRAM module
+  );
+end entity masterController;
+
+architecture archMasterController of masterController is
+
+  type state_type is (IDLE, CHECK_SETUP_SYNC_BYTE, WAIT_FOR_BYTE_DONE_1, CHECK_SETUP_PID, WAIT_FOR_BYTE_DONE_2,GRAB_MASTER_ADDRESS, WAIT_FOR_SETUP_EOP,
+                      WAIT_FOR_BYTE_DONE_3, CHECK_MDATA_SYNC_BYTE, WAIT_FOR_BYTE_DONE_4, CHECK_MDATA_PID, WAIT_FOR_BYTE_DONE_5, PUT_ADDRESS_BYTE_ON_BUS,
+                      WAIT_FOR_MDATA_EOP, WAIT_FOR_BYTE_DONE_6, CHECK_INOUT_SYNC_BYTE, WAIT_FOR_BYTE_DONE_7, CHECK_INOUT_PID, IN_STATE, OUT_STATE,
+                      SEND_OUT_PACKET_ON_BUS, OUT_STATE_FINISHED, COUNT_SETUP_EOP, WAIT_FOR_SRAM_DATA_1, TRANSMIT_DATA, WAIT_FOR_SRAM_DATA_2, TRANSMIT_DATA_FINISHED,
+                      READ_FROM_SRAM, ASSERT_LOAD_DATA, STORE_NUM_OF_BYTES_TO_TRANSMIT, WAIT_FOR_RESTART, WAIT_FOR_IN_EOP, COUNT_IN_EOP, CHECK_OUT_EOP,
+                      BYTE_STROBE_1, BYTE_STROBE_2, WAIT_FOR_SRAM_DATA_5, CHECK_SRAM_CONTROL, WAIT_FOR_SRAM_DATA_6,
+                      CHECK_SRAM_CONTROL_2, READ_FIRST_BYTE, WAIT_FOR_SRAM_DATA_10, ONE_STATE_TRANSMIT_DATA,
+                      EARLIER_TRANSMIT_DATA, OUT_ACK_MASTER, SETUP_ACK_MASTER, SETUP_ACKED_MASTER, CHECK_DATA0_SYNC_BYTE, CHECK_DATA0_PID,
+                      WAIT_FOR_DATA0_EOP, WAIT_FOR_BYTE_DONE_8, WAIT_FOR_BYTE_DONE_9,WAIT_FOR_BYTE_DONE_10, CHECK_IF_TRANSCEIVER_ADDRESS, WAIT_FOR_END_OF_IN_DATA_EOP, WAIT_FOR_IN_DATA_EOP, WAIT_FOR_IN_EOP_LOW, OUT_STATE_EOP_LOW,
+                      WAIT_FOR_SETUP_DATA_EOP, WAIT_FOR_END_OF_SETUP_DATA_EOP, WAIT_FOR_SRAM_ZERO_1, WAIT_FOR_SRAM_ZERO_2, WAIT_FOR_SRAM_CONTROL_10);
+  signal state, nextState : state_type;
+  signal internalMasterAddress, nextMasterAddress : std_logic_vector(7 downto 0);
+  signal nextEopCount, eopCount : integer range 0 to 7; --- to count for the THREE EOP detects for each packet
+  signal nextSRAM1Pointer, SRAM1Pointer : std_logic_vector(8 downto 0);
+  signal nextSRAM2Pointer, SRAM2Pointer : std_logic_vector(8 downto 0);
+  signal nextSRAM3Pointer, SRAM3Pointer : std_logic_vector(8 downto 0);
+  signal nextSRAM4Pointer, SRAM4Pointer : std_logic_vector(8 downto 0);
+  signal nextSramSelect, sramSelect : std_logic_vector(1 downto 0);
+  signal transmitByteCount, nextTransmitByteCount : std_logic_vector(7 downto 0);
+  signal transmittedBytesSoFar, nextTransmittedBytesSoFar : std_logic_vector(7 downto 0);
+  signal packetsTransmitted, nextPacketsTransmitted : std_logic_vector(7 downto 0);
+  signal currBusData, nextBusData : std_logic_vector(7 downto 0);
+begin
+  stateRegister : process(clk, rst_n)
+  begin
+    if (rst_n = '0') then
+      state <= IDLE;
+      eopCount <= 0;
+      internalMasterAddress <= "00000000";
+      SRAM1Pointer <= "000000000";
+      SRAM2Pointer <= "000000000";
+      SRAM3Pointer <= "000000000";
+      SRAM4Pointer <= "000000000";
+      sramSelect <= "00";            
+      transmitByteCount <= "00000000";
+      transmittedBytesSoFar <= "00000000"; 
+      packetsTransmitted <= "00000000";  
+      currBusData <= "00000000";   
+    elsif rising_edge(clk) then
+      state <= nextState;
+      eopCount <= nextEopCount;
+      internalMasterAddress <= nextMasterAddress;
+      SRAM1Pointer <= nextSRAM1Pointer;
+      SRAM2Pointer <= nextSRAM2Pointer;
+      SRAM3Pointer <= nextSRAM3Pointer;
+      SRAM4Pointer <= nextSRAM4Pointer;
+      sramSelect <= nextSramSelect;
+      transmitByteCount <= nextTransmitByteCount;
+      transmittedBytesSoFar <= nextTransmittedBytesSoFar;
+      packetsTransmitted <= nextPacketsTransmitted;
+      currBusData <= nextBusData;
+    end if;
+  end process stateRegister;
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------- NEXT STATE LOGIC BEGINS HERE ----------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+  stateMachine : process(state, byte_done, usb_data, sram_control, next_byte, eopDetect, eopCount)
+  begin
+    nextState <= state;
+    nextMasterAddress <= internalMasterAddress;
+
+    case state is 
+    
+	when IDLE =>
+		if(byte_done = '1') then
+			nextState <= CHECK_SETUP_SYNC_BYTE;
+    end if;
+	
+	when CHECK_SETUP_SYNC_BYTE =>
+	  if(usb_data = "10000000") then
+	     nextState <= WAIT_FOR_BYTE_DONE_1;
+	  else
+       nextState <= IDLE;	       
+    end if;
+	
+	when WAIT_FOR_BYTE_DONE_1 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_SETUP_PID;
+	  end if;
+	  
+	when CHECK_SETUP_PID =>
+	  if(usb_data = "11010010") then -- the upper 4 bits 1101 is the SETUP PID and the lower 4 bits are the PID complemented
+	    nextState <= WAIT_FOR_BYTE_DONE_2;
+	  else
+	    nextState <= IDLE;
+	  end if;  
+	  
+	when WAIT_FOR_BYTE_DONE_2 =>
+    if(byte_done = '1') then
+	    nextState <= GRAB_MASTER_ADDRESS;
+	  end if;	  
+	  
+	when GRAB_MASTER_ADDRESS =>
+    nextMasterAddress <= usb_data;
+	  nextState <= WAIT_FOR_SETUP_EOP;
+	 
+	when WAIT_FOR_SETUP_EOP =>
+	  if(eopDetect = '1') then
+	    nextState <= COUNT_SETUP_EOP;
+	  end if;
+	  
+	when COUNT_SETUP_EOP =>
+	  if(eopDetect = '0') then
+	    nextState <= WAIT_FOR_SETUP_DATA_EOP;
+	  end if;
+	  
+	when WAIT_FOR_SETUP_DATA_EOP =>
+	  if(eopDetect = '1') then
+	    nextState <= WAIT_FOR_END_OF_SETUP_DATA_EOP;
+	  end if;
+	  
+	when WAIT_FOR_END_OF_SETUP_DATA_EOP =>
+	  if(eopDetect = '0') then
+	    nextState <= SETUP_ACK_MASTER;
+	  end if;
+	      
+	when SETUP_ACK_MASTER =>
+	  if(eopCount >= 2) then
+	  	  nextState <= WAIT_FOR_BYTE_DONE_3;
+		--nextState <= SETUP_ACKED_MASTER;
+	  end if;
+	   
+	--when SETUP_ACKED_MASTER =>
+	--  if(next_byte = '1') then
+  	--  nextState <= WAIT_FOR_BYTE_DONE_3;
+	--  end if;
+	   
+	when WAIT_FOR_BYTE_DONE_3 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_MDATA_SYNC_BYTE;
+	  end if;
+	  
+	when CHECK_MDATA_SYNC_BYTE =>
+	  if(usb_data = "10000000") then
+	     nextState <= WAIT_FOR_BYTE_DONE_4;
+	  else
+	    nextState <= WAIT_FOR_RESTART;
+    end if;
+	
+	when WAIT_FOR_BYTE_DONE_4 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_MDATA_PID;
+	  end if;  
+	    
+	when CHECK_MDATA_PID =>
+	  if(usb_data = "11110000") then
+	      nextState <= WAIT_FOR_BYTE_DONE_5;
+ 	  else
+	    nextState <= WAIT_FOR_RESTART;
+	  end if;    
+	  
+	when WAIT_FOR_BYTE_DONE_5 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_IF_TRANSCEIVER_ADDRESS;
+	  end if;
+	    
+	when CHECK_IF_TRANSCEIVER_ADDRESS =>
+	  if(usb_data = internalMasterAddress) then
+	    nextState <= WAIT_FOR_MDATA_EOP;
+	  else
+	    nextState <= WAIT_FOR_RESTART;
+	  end if;
+	  
+	when WAIT_FOR_MDATA_EOP =>
+	  if(eopDetect = '1') then
+	    nextState <= WAIT_FOR_BYTE_DONE_8;
+	  end if;
+	  
+	when WAIT_FOR_BYTE_DONE_8 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_DATA0_SYNC_BYTE;
+	  end if;
+	  
+	when CHECK_DATA0_SYNC_BYTE =>
+	  if(usb_data = "10000000") then
+	    nextState <= WAIT_FOR_BYTE_DONE_9;
+ 	  else
+	    nextState <= WAIT_FOR_RESTART;
+
+	  end if;
+	  
+	when WAIT_FOR_BYTE_DONE_9 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_DATA0_PID;
+	  end if;
+	
+	when CHECK_DATA0_PID =>
+	  if(usb_data = "00111100") then
+	    nextState <= WAIT_FOR_BYTE_DONE_10;
+	  else
+	    nextState <= WAIT_FOR_RESTART;
+	  end if;
+	  
+	when WAIT_FOR_BYTE_DONE_10 =>
+	  if(byte_done = '1') then
+	    nextState <= PUT_ADDRESS_BYTE_ON_BUS;
+	  end if;
+	    
+	when PUT_ADDRESS_BYTE_ON_BUS =>
+	  nextState <= BYTE_STROBE_1;
+	  
+	when BYTE_STROBE_1 =>
+	  nextState <= WAIT_FOR_DATA0_EOP;
+	  
+	when WAIT_FOR_DATA0_EOP =>
+	  if(eopDetect = '1') then
+	    nextState <= WAIT_FOR_BYTE_DONE_6;
+	  end if;
+	   
+	when WAIT_FOR_BYTE_DONE_6 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_INOUT_SYNC_BYTE;
+	  end if;
+	  
+	when CHECK_INOUT_SYNC_BYTE =>
+	  if(usb_data = "10000000") then
+	    nextState <= WAIT_FOR_BYTE_DONE_7;
+ 	  else
+	    nextState <= WAIT_FOR_RESTART;
+
+	  end if;
+	  
+	when WAIT_FOR_BYTE_DONE_7 =>
+	  if(byte_done = '1') then
+	    nextState <= CHECK_INOUT_PID;
+	  end if;
+	  
+	when CHECK_INOUT_PID =>
+	  if(usb_data = "10010110") then --- then its an IN token
+	    nextState <= WAIT_FOR_IN_EOP;
+	  elsif(usb_data = "00011110") then -- then its an OUT token
+	    nextState <= OUT_STATE;
+	  else
+	    nextState <= WAIT_FOR_RESTART;
+	  end if;
+	  
+	when OUT_STATE =>
+	  if(eopCount >= 2) then
+        nextState <= OUT_STATE_FINISHED;
+      elsif(eopDetect = '1') then
+        nextState <= CHECK_OUT_EOP;
+      elsif(byte_done = '1') then
+   	    nextState <= SEND_OUT_PACKET_ON_BUS;
+ 	  end if;
+    
+  when CHECK_OUT_EOP =>
+    if(eopDetect = '0') then
+      nextState <= OUT_STATE_EOP_LOW;
+    end if;
+    
+  when OUT_STATE_EOP_LOW =>
+    nextState <= OUT_STATE;
+    
+  when SEND_OUT_PACKET_ON_BUS =>
+    nextState <= BYTE_STROBE_2;
+    
+  when BYTE_STROBE_2 =>
+    nextState <= OUT_STATE;
+  	  
+ 	when OUT_STATE_FINISHED =>
+ 	   if(next_byte = '1') then
+ 	     nextState <= OUT_ACK_MASTER;
+ 	   end if;
+ 	  
+ 	when OUT_ACK_MASTER =>
+ 	   if(next_byte = '1') then
+     	   nextState <= WAIT_FOR_RESTART;
+	   end if;
+ 	   
+ 	when WAIT_FOR_IN_EOP =>
+ 	  if(eopDetect = '1') then
+ 	    nextState <= WAIT_FOR_IN_EOP_LOW;
+ 	  end if;
+ 	  
+ 	when WAIT_FOR_IN_EOP_LOW =>
+ 	  if(eopDetect = '0') then
+	    nextState <= CHECK_SRAM_CONTROL;
+	  end if;
+	 
+	when CHECK_SRAM_CONTROL =>
+	  if(sram_control = '1') then
+	    nextState <= WAIT_FOR_SRAM_ZERO_1;
+	  end if;
+	  
+	when WAIT_FOR_SRAM_ZERO_1 =>
+	  if(sram_control = '0') then
+       nextState <= IN_STATE; 
+      end if;
+	    
+	when IN_STATE =>
+     nextState <= WAIT_FOR_SRAM_DATA_1;
+  
+  when WAIT_FOR_SRAM_DATA_1 =>
+     nextState <= WAIT_FOR_SRAM_DATA_5;
+     
+  when WAIT_FOR_SRAM_DATA_5 =>
+     nextState <= STORE_NUM_OF_BYTES_TO_TRANSMIT;
+  
+   when STORE_NUM_OF_BYTES_TO_TRANSMIT =>
+     nextState <= WAIT_FOR_SRAM_ZERO_2;
+    
+  when WAIT_FOR_SRAM_ZERO_2 =>
+     if(sram_control = '1') then
+       nextState <= READ_FIRST_BYTE;
+     end if;
+      
+  when READ_FIRST_BYTE =>
+     if(sram_control = '0') then
+       nextState <= WAIT_FOR_SRAM_DATA_10;
+     end if;
+    
+  when WAIT_FOR_SRAM_DATA_10 =>
+     nextState <= EARLIER_TRANSMIT_DATA;
+  
+  when EARLIER_TRANSMIT_DATA =>
+     nextState <= ONE_STATE_TRANSMIT_DATA;
+     
+  when ONE_STATE_TRANSMIT_DATA =>
+     nextState <= TRANSMIT_DATA;
+     
+  when TRANSMIT_DATA =>
+     if(transmitByteCount = "00000000") then
+       nextState <= WAIT_FOR_RESTART;
+     elsif(next_byte = '1' and transmittedBytesSoFar < transmitByteCount) then
+       nextState <= WAIT_FOR_SRAM_CONTROL_10;
+     elsif(transmittedBytesSoFar >= transmitByteCount) then
+       nextState <= TRANSMIT_DATA_FINISHED;
+     end if;
+     
+   when WAIT_FOR_SRAM_CONTROL_10 =>
+    if(sram_control = '1') then
+      nextState <= CHECK_SRAM_CONTROL_2;
+    end if;
+    
+  when CHECK_SRAM_CONTROL_2 =>
+    if(sram_control = '0') then
+      nextState <= READ_FROM_SRAM;
+    end if;
+    
+  
+  when READ_FROM_SRAM =>
+     nextState <= WAIT_FOR_SRAM_DATA_2;
+     
+  when WAIT_FOR_SRAM_DATA_2 =>
+     nextState <= ASSERT_LOAD_DATA;
+     
+  
+  when ASSERT_LOAD_DATA =>
+     nextState <= ONE_STATE_TRANSMIT_DATA;
+     
+  when TRANSMIT_DATA_FINISHED =>
+     nextState <= WAIT_FOR_RESTART; 
+        
+  when WAIT_FOR_RESTART =>
+    if(byte_done = '1') then
+      nextState <= CHECK_MDATA_SYNC_BYTE;
+    end if;
+    
+	when OTHERS => 
+		nextState <= IDLE;
+
+    end case;
+  end process;
+                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------- OUTPUT LOGIC BEGINS HERE ----------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+  outputLogic : process(state, next_byte, eopDetect)
+  begin
+      load_data <= '0';
+      tx_enable <= '0';
+      data_transmission_live <= '0';
+      byte_strobe <= '0';
+      --bus_data <= "00000000";
+--      sram_select <= "00";
+      sram_address <= "000000000";
+      read_enable <= '0';
+      nextEopCount <= eopCount;
+      nextSRAM1Pointer <= SRAM1Pointer;
+	    nextSRAM2Pointer <= SRAM2Pointer;
+	    nextSRAM3Pointer <= SRAM3Pointer;
+	    nextSRAM4Pointer <= SRAM4Pointer;    
+      nextSramSelect <= sramSelect;
+      nextTransmitByteCount <= transmitByteCount;  
+      nextTransmittedBytesSoFar <= transmittedBytesSoFar;    
+      nextPacketsTransmitted <= packetsTransmitted;      
+      nextBusData <= currBusData;
+    case state is 
+    
+	when IDLE =>
+	tx_enable <= '0';
+		  nextSRAM1Pointer <= "000000000";
+      nextSRAM2Pointer <= "000000000";
+      nextSRAM3Pointer <= "000000000";
+      nextSRAM4Pointer <= "000000000";
+      nextSramSelect <= "00";
+      nextTransmitByteCount <= "00000000";
+      nextTransmittedBytesSoFar <= "00000000";
+      nextEopCount <= 0;
+      nextPacketsTransmitted <= "00000000";
+      nextBusData <= "00000000";
+      
+	when CHECK_SETUP_SYNC_BYTE =>
+		tx_enable <= '0';
+  when WAIT_FOR_BYTE_DONE_1 =>
+   tx_enable <= '0';
+   
+  when CHECK_SETUP_PID =>
+  tx_enable <= '0';
+   
+  when WAIT_FOR_BYTE_DONE_2 =>
+  tx_enable <= '0';
+    
+  when GRAB_MASTER_ADDRESS =>
+      nextEopCount <= 0;
+      tx_enable <= '0';
+      
+  when WAIT_FOR_SETUP_EOP =>
+      if(eopDetect = '1') then
+         nextEopCount <= eopCount + 1;
+      end if;  
+      tx_enable <= '0';
+
+  when COUNT_SETUP_EOP =>
+      if(eopDetect = '1') then
+          --nextEopCount <= eopCount + 1;
+      end if;
+      nextEopCount <= 0;
+      tx_enable <= '0';
+   
+   when SETUP_ACK_MASTER =>
+     if(next_byte = '1') then
+       nextEopCount <= eopCount + 1;
+     end if;
+     tx_enable <= '1';
+
+ -- when SETUP_ACK_MASTER =>
+ --     tx_enable <= '1';
+      
+ -- when SETUP_ACKED_MASTER =>
+ --     tx_enable <= '1';
+      
+  when WAIT_FOR_BYTE_DONE_3 =>
+	    nextEopCount <= 0;
+	    tx_enable <= '0';
+	    
+	when CHECK_MDATA_SYNC_BYTE =>
+	tx_enable <= '0';
+	
+	when WAIT_FOR_BYTE_DONE_4 =>
+	 tx_enable <= '0';
+	 
+	when CHECK_MDATA_PID =>
+	  tx_enable <= '0';
+	  
+	when WAIT_FOR_BYTE_DONE_5 =>
+	 tx_enable <= '0';
+	 
+  when CHECK_IF_TRANSCEIVER_ADDRESS =>
+		tx_enable <= '0';
+		
+	when WAIT_FOR_MDATA_EOP =>
+	  tx_enable <= '0';
+	  
+	when WAIT_FOR_BYTE_DONE_8 =>
+	  tx_enable <= '0';
+	  
+	when CHECK_DATA0_SYNC_BYTE =>
+	  tx_enable <= '0';
+	  
+	when WAIT_FOR_BYTE_DONE_9 =>
+	tx_enable <= '0';
+	
+	when CHECK_DATA0_PID =>
+	  tx_enable <= '0';
+	  
+	when WAIT_FOR_BYTE_DONE_10 =>
+	tx_enable <= '0';
+	
+	when PUT_ADDRESS_BYTE_ON_BUS =>
+	   nextBusData <= usb_data;
+	   if(address = "00000001") then
+	     if(usb_data = "00000010") then
+	       nextSramSelect <= "00";
+	     elsif(usb_data = "00000011") then
+	       nextSramSelect <= "01";
+	     elsif(usb_data = "00000100") then
+	       nextSramSelect <= "10";
+	     elsif(usb_data = "00000101") then
+	       nextSramSelect <= "11";
+	     end if;
+	   elsif(address = "00000010") then
+	     if(usb_data = "00000001") then
+	       nextSramSelect <= "00";
+	     elsif(usb_data = "00000011") then
+	       nextSramSelect <= "01";
+	     elsif(usb_data = "00000100") then
+	       nextSramSelect <= "10";
+	     elsif(usb_data = "00000101") then
+	       nextSramSelect <= "11";
+	     end if;
+	   elsif(address = "00000011") then
+	     if(usb_data = "00000001") then
+	       nextSramSelect <= "00";
+	     elsif(usb_data = "00000010") then
+	       nextSramSelect <= "01";
+	     elsif(usb_data = "00000100") then
+	       nextSramSelect <= "10";
+	     elsif(usb_data = "00000101") then
+	       nextSramSelect <= "11";
+	     end if;
+	   elsif(address = "00000100") then
+	     if(usb_data = "00000001") then
+	       nextSramSelect <= "00";
+	     elsif(usb_data = "00000010") then
+	       nextSramSelect <= "01";
+	     elsif(usb_data = "00000011") then
+	       nextSramSelect <= "10";
+	     elsif(usb_data = "00000101") then
+	       nextSramSelect <= "11";
+	     end if;
+	   elsif(address = "00000101") then
+	     if(usb_data = "00000001") then
+	       nextSramSelect <= "00";
+	     elsif(usb_data = "00000010") then
+	       nextSramSelect <= "01";
+	     elsif(usb_data = "00000011") then
+	       nextSramSelect <= "10";
+	     elsif(usb_data = "00000100") then
+	       nextSramSelect <= "11";
+	     end if;
+	   end if;	       
+	   data_transmission_live <= '1';
+	  -- byte_strobe <= '1';
+	  tx_enable <= '0';
+	
+  when BYTE_STROBE_1 =>
+	    byte_strobe <= '1';
+	    data_transmission_live <= '1';
+	    tx_enable <= '0';
+	    
+	when WAIT_FOR_DATA0_EOP =>
+	   data_transmission_live <= '1';
+	   byte_strobe <= '0';
+	   tx_enable <= '0';
+	  
+	when WAIT_FOR_BYTE_DONE_6 =>
+	   data_transmission_live <= '1';
+	   tx_enable <= '0';
+	
+	when CHECK_INOUT_SYNC_BYTE =>
+	   data_transmission_live <= '1';
+	   tx_enable <= '0';
+	   	  
+	when WAIT_FOR_BYTE_DONE_7 =>
+	   data_transmission_live <= '1';
+	   tx_enable <= '0';
+	   	  
+	when CHECK_INOUT_PID =>
+	   data_transmission_live <= '1';	  
+	   nextEopCount <= 0;
+	   tx_enable <= '0';
+	   
+	when OUT_STATE =>
+	  data_transmission_live <= '1';	  
+      byte_strobe <= '0';
+      tx_enable <= '0';
+      
+    
+  when CHECK_OUT_EOP => 
+    data_transmission_live <= '1';
+    tx_enable <= '0';
+    
+  when OUT_STATE_EOP_LOW =>
+    nextEopCount <= eopCount +1;
+    data_transmission_live <= '1';
+    tx_enable <= '0';
+    
+	when SEND_OUT_PACKET_ON_BUS =>
+	   data_transmission_live <= '1';
+	   nextBusdata <= usb_data;
+     --byte_strobe <= '1';
+    -- if(eopDetect = '1') then
+     --  nextEopCount <= eopCount + 1;
+     --end if;
+     tx_enable <= '0';
+     
+  when BYTE_STROBE_2 =>
+     byte_strobe <= '1';
+     data_transmission_live <= '1';
+     tx_enable <= '0';
+       
+ 	when OUT_STATE_FINISHED =>
+ 	  tx_enable <= '1';
+ 	  byte_strobe <= '0';
+ 	  data_transmission_live <= '0';
+ 	  nextEopCount <= 0;
+
+  when OUT_ACK_MASTER =>
+    tx_enable <= '1';
+    
+  when WAIT_FOR_IN_EOP =>
+    --  if(eopDetect = '1') then
+     --    nextEopCount <= eopCount + 1;
+     -- end if;  
+     tx_enable <= '0';
+
+  when COUNT_IN_EOP =>
+     -- if(eopDetect = '1') then
+     --     nextEopCount <= eopCount + 1;
+     -- end if;
+      tx_enable <= '0';
+      
+  when CHECK_SRAM_CONTROL =>
+       tx_enable <= '0';
+       
+	when IN_STATE =>
+	    if(sramSelect = "00") then
+	      sram_address <= SRAM1Pointer;
+	      nextSRAM1Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM1Pointer)) + 1, 9));
+	    elsif(sramSelect = "01") then
+	      sram_address <= SRAM2Pointer;
+	      nextSRAM2Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM2Pointer)) + 1, 9)); 
+	    elsif(sramSelect = "10") then
+	      sram_address <= SRAM3Pointer;
+	      nextSRAM3Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM3Pointer)) + 1, 9));
+	    elsif(sramSelect = "11") then
+	      sram_address <= SRAM4Pointer;
+	      nextSRAM4Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM4Pointer)) + 1, 9));
+	    end if;
+	    read_enable <= '1';
+	    --tx_enable <= '1';
+	    --load_data <= '1';
+	    tx_enable <= '0';
+	    
+	when WAIT_FOR_SRAM_DATA_1 =>
+	    read_enable <= '1';
+	    --tx_enable <= '1';
+	    tx_enable <= '0';
+	  
+	when WAIT_FOR_SRAM_DATA_5 =>
+	    read_enable <= '0';
+	    --tx_enable <= '1';
+	    tx_enable <= '0';
+	    
+	when STORE_NUM_OF_BYTES_TO_TRANSMIT =>
+	    nextTransmitByteCount <= sram_data_out;
+	   tx_enable <= '0';
+	   
+    when WAIT_FOR_SRAM_ZERO_2 =>
+        tx_enable <= '0';
+        
+	when READ_FIRST_BYTE =>
+	    if(sramSelect = "00") then
+	     sram_address <= SRAM1Pointer;
+	   elsif(sramSelect = "01") then
+	     sram_address <= SRAM2Pointer;
+	   elsif(sramSelect = "10") then
+	     sram_address <= SRAM3Pointer;
+	   elsif(sramSelect = "11") then
+	     sram_address <= SRAM4Pointer;
+	   end if;
+	    read_enable <= '1';
+	    --tx_enable <= '1';
+	    tx_enable <= '0';
+        
+	when WAIT_FOR_SRAM_DATA_10 =>
+	    if(sramSelect = "00") then
+	     sram_address <= SRAM1Pointer;
+	     nextSRAM1Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM1Pointer)) + 1, 9));
+     	elsif(sramSelect = "01") then
+	     sram_address <= SRAM2Pointer;
+	     nextSRAM2Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM2Pointer)) + 1, 9)); 
+	    elsif(sramSelect = "10") then
+	     sram_address <= SRAM3Pointer;
+	     nextSRAM3Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM3Pointer)) + 1, 9));
+	    elsif(sramSelect = "11") then
+	     sram_address <= SRAM4Pointer;
+	     nextSRAM4Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM4Pointer)) + 1, 9));
+	    end if;
+	    tx_enable <= '0';
+	    read_enable <= '1';
+	    
+	when EARLIER_TRANSMIT_DATA =>
+	    tx_enable <= '1'; 
+	    
+	when ONE_STATE_TRANSMIT_DATA =>
+	    tx_enable <= '1';
+	    load_data <= '1';
+	    
+	when TRANSMIT_DATA =>
+	    tx_enable <= '1';
+	    load_data <= '0';
+	    nextTransmittedBytesSoFar <= std_logic_vector(to_unsigned(to_integer(unsigned(transmittedBytesSoFar)) + 1, 8));
+ 	    --if(
+ 	
+ 	when WAIT_FOR_SRAM_CONTROL_10 =>
+ 	    tx_enable <= '1';
+ 	    
+ 	when CHECK_SRAM_CONTROL_2 =>
+	    tx_enable <= '1';
+        load_data <= '0'; 	
+
+ 	when READ_FROM_SRAM =>
+       if(sramSelect = "00") then
+	     sram_address <= SRAM1Pointer;
+	   elsif(sramSelect = "01") then
+	     sram_address <= SRAM2Pointer;
+	   elsif(sramSelect = "10") then
+	     sram_address <= SRAM3Pointer;
+	   elsif(sramSelect = "11") then
+	     sram_address <= SRAM4Pointer;
+	   end if;
+ 	   read_enable <= '1';
+ 	   tx_enable <= '1';
+       load_data <= '0';
+ 	   
+  when WAIT_FOR_SRAM_DATA_2 =>
+ 	 if(sramSelect = "00") then
+	   sram_address <= SRAM1Pointer;
+	   nextSRAM1Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM1Pointer)) + 1, 9));
+	 elsif(sramSelect = "01") then
+	   sram_address <= SRAM2Pointer;
+	   nextSRAM2Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM2Pointer)) + 1, 9)); 
+	 elsif(sramSelect = "10") then
+	   sram_address <= SRAM3Pointer;
+	   nextSRAM3Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM3Pointer)) + 1, 9));
+	 elsif(sramSelect = "11") then
+	   sram_address <= SRAM4Pointer;
+	   nextSRAM4Pointer <= std_logic_vector(to_unsigned(to_integer(unsigned(SRAM4Pointer)) + 1, 9));
+	 end if;
+     read_enable <= '1';
+     tx_enable <= '1';
+     load_data <= '0';
+  
+  when WAIT_FOR_SRAM_DATA_6 =>
+     read_enable <= '0';
+     tx_enable <= '1';
+     load_data <= '0';
+  
+  when ASSERT_LOAD_DATA =>
+     load_data <= '0';
+     tx_enable <= '1';
+     
+     
+  when TRANSMIT_DATA_FINISHED =>
+     tx_enable <= '0';
+     if(packetsTransmitted = "00000101") then
+       nextPacketsTransmitted <= "00000000";
+     else
+       nextPacketsTransmitted <= std_logic_vector(to_unsigned(to_integer(unsigned(packetsTransmitted)) + 1, 8));
+     end if;
+     
+  when WAIT_FOR_RESTART =>
+      nextTransmitByteCount <= "00000000";
+      nextTransmittedBytesSoFar <= "00000000";
+      nextEopCount <= 0;
+      tx_enable <= '0';
+
+  when OTHERS =>
+  	  load_data <= '0';
+      tx_enable <= '0';
+      data_transmission_live <= '0';
+      byte_strobe <= '0';
+      --bus_data <= "00000000";
+--      sram_select <= "00";
+      sram_address <= "000000000";
+      read_enable <= '0';
+      nextEopCount <= eopCount;
+      nextSRAM1Pointer <= SRAM1Pointer;
+	    nextSRAM2Pointer <= SRAM2Pointer;
+	    nextSRAM3Pointer <= SRAM3Pointer;
+	    nextSRAM4Pointer <= SRAM4Pointer;    
+      nextSramSelect <= sramSelect;
+      nextTransmitByteCount <= transmitByteCount;  
+      nextTransmittedBytesSoFar <= transmittedBytesSoFar;    
+      nextPacketsTransmitted <= packetsTransmitted;      
+      nextBusData <= currBusData;
+   
+   end case;
+  end process;
+
+  master_address <= internalMasterAddress;
+  sram_select <= sramSelect;
+  bus_data <= currBusData;
+end archMasterController;

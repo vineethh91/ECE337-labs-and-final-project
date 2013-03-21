@@ -1,0 +1,190 @@
+-- $Id: $
+-- File name:   tb_controller.vhd
+-- Created:     10/9/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_controller is
+generic (Period : Time := 10 ns);
+end tb_controller;
+
+architecture TEST of tb_controller is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component controller
+    PORT(
+         clk : in std_logic;
+         rst_n : in std_logic;
+         stop_found : in std_logic;
+         start_found : in std_logic;
+         byte_received : in std_logic;
+         ack_prep : in std_logic;
+         check_ack : in std_logic;
+         ack_done : in std_logic;
+         rw_mode : in std_logic;
+         address_match : in std_logic;
+         sda_in : in std_logic;
+         rx_enable : out std_logic;
+         tx_enable : out std_logic;
+         read_enable : out std_logic;
+         sda_mode : out std_logic_vector(1 downto 0);
+         load_data : out std_logic
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal rst_n : std_logic;
+  signal stop_found : std_logic;
+  signal start_found : std_logic;
+  signal byte_received : std_logic;
+  signal ack_prep : std_logic;
+  signal check_ack : std_logic;
+  signal ack_done : std_logic;
+  signal rw_mode : std_logic;
+  signal address_match : std_logic;
+  signal sda_in : std_logic;
+  signal rx_enable : std_logic;
+  signal tx_enable : std_logic;
+  signal read_enable : std_logic;
+  signal sda_mode : std_logic_vector(1 downto 0);
+  signal load_data : std_logic;
+
+-- signal <name> : <type>;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: controller port map(
+                clk => clk,
+                rst_n => rst_n,
+                stop_found => stop_found,
+                start_found => start_found,
+                byte_received => byte_received,
+                ack_prep => ack_prep,
+                check_ack => check_ack,
+                ack_done => ack_done,
+                rw_mode => rw_mode,
+                address_match => address_match,
+                sda_in => sda_in,
+                rx_enable => rx_enable,
+                tx_enable => tx_enable,
+                read_enable => read_enable,
+                sda_mode => sda_mode,
+                load_data => load_data
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+
+    rst_n <= '0'; 
+
+    stop_found <= '0'; 
+
+    start_found <= '0';
+
+    byte_received <= '0';
+
+    ack_prep <= '0';
+
+    check_ack <= '0';
+
+    ack_done <= '0';
+
+    rw_mode <= '0';
+
+    address_match <= '0'; 
+
+    sda_in <= '0';
+
+    wait for 6 ns;
+
+    rst_n <= '1';
+
+    wait for 10 ns;
+           
+    start_found <= '1';
+    wait for 10 ns;
+    start_found <= '0';
+    
+    wait for 30 ns;
+    
+    byte_received <= '1';
+    wait for 10 ns;
+    byte_received <= '0';
+    
+    address_match <= '1';
+    rw_mode <= '1';
+    wait for 10 ns;
+    address_match <= '0';
+    rw_mode <= '0';
+    
+    ack_done <= '1';
+    wait for 10 ns;
+    ack_done <= '0';
+    
+    byte_received <= '1';
+    wait for 30 ns;
+    byte_received <= '0';
+    
+    check_ack <= '1';
+    wait for 10 ns;
+    check_ack <= '0';
+    
+    sda_in <= '0';
+    wait for 10 ns;
+    
+    ack_done <= '1';
+    wait for 10 ns;
+    ack_done <= '0';
+    
+
+    byte_received <= '1';
+    wait for 30 ns;
+    byte_received <= '0';
+    
+    check_ack <= '1';
+    wait for 10 ns;
+    check_ack <= '0';
+
+    sda_in <= '1';
+    wait for 10 ns;
+    sda_in <= '0';
+    
+    start_found <= '1';
+    wait for 10 ns;
+    start_found <= '0';
+    
+    
+  end process;
+end TEST;

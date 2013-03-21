@@ -1,0 +1,443 @@
+-- $Id: $
+-- File name:   tb_addr16Bit.vhd
+-- Created:     9/6/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_addr16Bit is
+end tb_addr16Bit;
+
+architecture TEST of tb_addr16Bit is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component addr16Bit
+    PORT(
+         A : in std_logic_vector(15 downto 0);
+         B : in std_logic_vector(15 downto 0);
+         CARRYIN : in std_logic;
+         SUM : out std_logic_vector(15 downto 0);
+         OVERFLOW : out std_logic
+    );
+  end component;
+
+  component GOLD_addr16Bit
+    PORT(
+         A : in std_logic_vector(15 downto 0);
+         B : in std_logic_vector(15 downto 0);
+         CARRYIN : in std_logic;
+         SUM : out std_logic_vector(15 downto 0);
+         OVERFLOW : out std_logic
+    );
+  end component;
+
+-- Configuration settings
+for DUT_SIMPLE: addr16Bit use entity work.addr16Bit(syn_structural);
+for DUT_GEN: addr16Bit use entity work.addr16Bit(syn_gen_structural);
+
+-- Insert signals Declarations here
+  signal A : std_logic_vector(15 downto 0);
+  signal B : std_logic_vector(15 downto 0);
+  signal CARRYIN : std_logic;
+  signal SUM_SIMPLE : std_logic_vector(15 downto 0);
+  signal OVERFLOW_SIMPLE : std_logic;
+  signal SUM_GEN : std_logic_vector(15 downto 0);
+  signal OVERFLOW_GEN : std_logic;
+  signal GOLD_SUM : std_logic_vector(15 downto 0);
+  signal GOLD_OVERFLOW : std_logic;
+  signal noMatch : std_logic;
+  
+
+begin
+  DUT_SIMPLE: addr16Bit port map(
+                A => A,
+                B => B,
+                CARRYIN => CARRYIN,
+                SUM => SUM_SIMPLE,
+                OVERFLOW => OVERFLOW_SIMPLE
+                );
+  DUT_GEN: addr16Bit port map(
+                A => A,
+                B => B,
+                CARRYIN => CARRYIN,
+                SUM => SUM_GEN,
+                OVERFLOW => OVERFLOW_GEN
+                );
+
+  GOLD: GOLD_addr16Bit port map(
+                A => A,
+                B => B,
+                CARRYIN => CARRYIN,
+                SUM => GOLD_SUM,
+                OVERFLOW => GOLD_OVERFLOW
+                );
+
+addr16Test: process
+   variable result : STD_LOGIC_VECTOR(15 downto 0);
+  begin
+    noMatch <= '0';
+-- Insert TEST BENCH Code Here
+    result := UINT_TO_STDV(0,16);
+    A <= result;
+    result := UINT_TO_STDV(0,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;
+
+    result := UINT_TO_STDV(0,16);
+    A <= result;
+    result := UINT_TO_STDV(0,16);
+    B <= result;
+    CARRYIN <= '1';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(1,16);
+    A <= result;
+    result := UINT_TO_STDV(2,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(1,16);
+    A <= result;
+    result := UINT_TO_STDV(2,16);
+    B <= result;
+    CARRYIN <= '1';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(7,16);
+    A <= result;
+    result := UINT_TO_STDV(7,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(7,16);
+    A <= result;
+    result := UINT_TO_STDV(7,16);
+    B <= result;
+    CARRYIN <= '1';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(1024,16);
+    A <= result;
+    result := UINT_TO_STDV(2048,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+ 
+    result := UINT_TO_STDV(1024,16);
+    A <= result;
+    result := UINT_TO_STDV(2048,16);
+    B <= result;
+    CARRYIN <= '1';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(10000,16);
+    A <= result;
+    result := UINT_TO_STDV(2,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(10000,16);
+    A <= result;
+    result := UINT_TO_STDV(2,16);
+    B <= result;
+    CARRYIN <= '1';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(65535,16);
+    A <= result;
+    result := UINT_TO_STDV(0,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(0,16);
+    A <= result;
+    result := UINT_TO_STDV(65535,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    result := UINT_TO_STDV(65535,16);
+    A <= result;
+    result := UINT_TO_STDV(65535,16);
+    B <= result;
+    CARRYIN <= '0';
+    wait for 20 ns;
+    Assert(SUM_SIMPLE = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(SUM_GEN = GOLD_SUM)
+        Report "SUM is not equal to GOLD_SUM"
+            severity error;
+    Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+        Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+            severity error;
+    if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+        noMatch <= '1';
+    else
+        noMatch <= '0';
+    end if;    
+
+    for k in 0 to 15 loop
+      result := UINT_TO_STDV(0,16);
+      result(k) := '1';
+      A <= result;
+      for h in 0 to 15 loop
+        result := UINT_TO_STDV(0,16);
+        result(h) := '1';
+        B <= result;
+        for l in 0 to 1 loop
+          CARRYIN <= UINT_TO_STDV(l,1)(0);
+          wait for 20 ns;
+     
+            Assert(SUM_SIMPLE = GOLD_SUM)
+              Report "SUM is not equal to GOLD_SUM"
+                  severity error;
+            Assert(SUM_GEN = GOLD_SUM)
+              Report "SUM is not equal to GOLD_SUM"
+                  severity error;
+            Assert(OVERFLOW_SIMPLE = GOLD_OVERFLOW)
+              Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+                  severity error;
+            Assert(OVERFLOW_GEN = GOLD_OVERFLOW)
+              Report "OVERFLOW is not equal to GOLD_OVERFLOW"
+                  severity error;
+          if((SUM_SIMPLE /= GOLD_SUM) or (SUM_GEN /= GOLD_SUM) or (OVERFLOW_SIMPLE /= GOLD_OVERFLOW) or (OVERFLOW_GEN /= GOLD_OVERFLOW)) then
+            noMatch <= '1';
+          else
+            noMatch <= '0';
+          end if;
+        end loop;
+      end loop;
+    end loop;
+  end process addr16Test;
+end TEST;

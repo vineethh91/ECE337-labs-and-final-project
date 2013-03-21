@@ -1,0 +1,544 @@
+-- $Id: $
+-- File name:   tb_transceiver.vhd
+-- Created:     11/24/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_transceiver is
+generic (Period : Time := 4.16 ns);
+end tb_transceiver;
+
+architecture TEST of tb_transceiver is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component transceiver
+    PORT(
+         clk : in std_logic;
+         rst_n : in std_logic;
+         d_plus_in : in std_logic;
+         d_plus_out : out std_logic;
+         d_minus_in : in std_logic;
+         d_minus_out : out std_logic;
+         d_enable : out std_logic;
+         bus_IN_data1 : in std_logic_vector(9 downto 0);
+         bus_IN_data2 : in std_logic_vector(9 downto 0);
+         bus_IN_data3 : in std_logic_vector(9 downto 0);
+         bus_IN_data4 : in std_logic_vector(9 downto 0);
+         bus_OUT_data : out std_logic_vector(9 downto 0)
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal rst_n : std_logic;
+  signal d_plusin : std_logic;
+  signal d_plus_out : std_logic;
+  signal d_minusin : std_logic;
+  signal d_minus_out : std_logic;
+  signal d_enable : std_logic;
+  signal bus_IN_data1 : std_logic_vector(9 downto 0);
+  signal bus_IN_data2 : std_logic_vector(9 downto 0);
+  signal bus_IN_data3 : std_logic_vector(9 downto 0);
+  signal bus_IN_data4 : std_logic_vector(9 downto 0);
+  signal bus_OUT_data : std_logic_vector(9 downto 0);
+  signal currentTestByte : std_logic_vector(7 downto 0);
+
+-- signal <name> : <type>;
+
+ procedure send_byte_serially(data : std_logic_vector(7 downto 0); signal dplus	: inout std_logic;
+		      signal dminus : inout std_logic; signal currTestByte : inout std_logic_vector(7 downto 0)) is
+    begin
+      currTestByte <= data;
+	-- Send data bits
+	for i in 0 to 7 loop
+           dplus <= data(i);
+       	   dminus <= not data(i);
+	         wait for 20*Period; -- Hold value for one bit length --> 20*4.16ns = 1 USB Bit length
+  end loop;
+  end procedure send_byte_serially;
+  
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: transceiver port map(
+                clk => clk,
+                rst_n => rst_n,
+                d_plus_in => d_plusin,
+                d_plus_out => d_plus_out,
+                d_minus_in => d_minusin,
+                d_minus_out => d_minus_out,
+                d_enable => d_enable,
+                bus_IN_data1 => bus_IN_data1,
+                bus_IN_data2 => bus_IN_data2,
+                bus_IN_data3 => bus_IN_data3,
+                bus_IN_data4 => bus_IN_data4,
+                bus_OUT_data => bus_OUT_data
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+
+  
+    rst_n <= '0';
+    d_plusin <= '1'; -- send both differential lines to high (IDLE)
+    d_minusin <= '1';
+    wait for 5 ns;
+    rst_n <= '1';
+    wait for 10*Period;
+    bus_in_data1 <= "0000000000";
+    bus_in_data2 <= "0000000000";
+    bus_in_data3 <= "0000000000";
+    bus_in_data4 <= "0000000000";
+    
+------------------------------------------------------NOTE : ALL BYTES HENCEFORTH ARE NRZi ENCODED-----------------------------------------------------------------
+    
+    
+    
+------------------------------------------------------START OF SETUP PACKET------------------------------------------------------------------------------
+
+    send_byte_serially("00101010", d_plusin, d_minusin, currentTestByte); -- SETUP SYNC byte
+
+    send_byte_serially("00011011", d_plusin, d_minusin, currentTestByte); -- SETUP PID
+  
+    send_byte_serially("11010110", d_plusin, d_minusin, currentTestByte); -- SEND THE MASTER ADDRESS
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    
+    d_plusin <= '0'; -- EOP #1
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+    
+    d_plusin <= '0'; -- EOP #2
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period; 
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE SETUP EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+    
+    d_plusin <= '0'; -- EOP #3
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+------------------------------------------------------END OF SETUP PACKET------------------------------------------------------------------------------
+    
+    
+------------------------------------------------------START OF OUT PACKET------------------------------------------------------------------------------
+
+    send_byte_serially("00101010", d_plusin, d_minusin, currentTestByte); -- MDATA SYNC byte
+    send_byte_serially("00000101", d_plusin, d_minusin, currentTestByte); -- MDATA PID
+    
+    -- Bit 1
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 2
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Skipped Bit 3
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 3
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 4
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 5
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 6
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 7
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 8
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+ 
+    --send_byte_serially("01010100", d_plusin, d_minusin, currentTestByte); -- MDATA ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+    d_plusin <= '0'; -- EOP
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+
+
+    send_byte_serially("00101010", d_plusin, d_minusin, currentTestByte); -- OUT SYNC byte
+    send_byte_serially("10100001", d_plusin, d_minusin, currentTestByte); -- OUT PID
+  
+    send_byte_serially("11111011", d_plusin, d_minusin, currentTestByte); -- OUT ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+    
+    d_plusin <= '0'; -- EOP #1
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+   
+    d_plusin <= '0'; -- EOP #2
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period; 
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+   
+    d_plusin <= '0'; -- EOP #3
+    d_minusin <= '0';
+    wait for 20*Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+
+------------------------------------------------------END OF OUT PACKET------------------------------------------------------------------------------
+    
+    
+---------------START OF data transmission to bus controller--------------------------------------------------
+    bus_in_data3 <= "1100000001";
+    wait for Period;
+    bus_in_data3 <= "0100000001";
+    wait for 800 ns - Period;
+    bus_in_data3 <= "1110101010";
+    wait for Period;
+    bus_in_data3 <= "0110101010";
+    wait for 800 ns - Period;
+    bus_in_data3 <= "1100001111";
+    wait for Period;
+    bus_in_data3 <= "0100001111";
+    wait for 800 ns - Period;
+    bus_in_data3 <= "1111110000";
+    wait for Period;
+    bus_in_data3 <= "0111110000";
+    wait for 800 ns - Period;
+    bus_in_data3 <= "1101010101";
+    wait for Period;
+    bus_in_data3 <= "0101010101";
+    wait for 800 ns - Period;
+    bus_in_data3 <= "1111100010";
+    wait for Period;
+    bus_in_data3 <= "0011100010";
+    wait for 800 ns;
+    
+    -- BUS 1
+    
+    bus_in_data1 <= "1100000001";
+    wait for Period;
+    bus_in_data1 <= "0100000001";
+    wait for 800 ns - Period;
+    bus_in_data1 <= "1110101010";
+    wait for Period;
+    bus_in_data1 <= "0110101010";
+    wait for 800 ns - Period;
+    bus_in_data1 <= "1100001111";
+    wait for Period;
+    bus_in_data1 <= "0100001111";
+    wait for 800 ns - Period;
+    bus_in_data1 <= "1111110000";
+    wait for Period;
+    bus_in_data1 <= "0111110000";
+    wait for 800 ns - Period;
+    bus_in_data1 <= "1101010101";
+    wait for Period;
+    bus_in_data1 <= "0101010101";
+    wait for 800 ns - Period;
+    bus_in_data1 <= "1111100010";
+    wait for Period;
+    bus_in_data1 <= "0011100010";
+    wait for 800 ns;
+    
+    -- BUS 2
+    
+    bus_in_data2 <= "1100000001";
+    wait for Period;
+    bus_in_data2 <= "0100000001";
+    wait for 800 ns - Period;
+    bus_in_data2 <= "1110101010";
+    wait for Period;
+    bus_in_data2 <= "0110101010";
+    wait for 800 ns - Period;
+    bus_in_data2 <= "1100001111";
+    wait for Period;
+    bus_in_data2 <= "0100001111";
+    wait for 800 ns - Period;
+    bus_in_data2 <= "1111110000";
+    wait for Period;
+    bus_in_data2 <= "0111110000";
+    wait for 800 ns - Period;
+    bus_in_data2 <= "1101010101";
+    wait for Period;
+    bus_in_data2 <= "0101010101";
+    wait for 800 ns - Period;
+    bus_in_data2 <= "1111100010";
+    wait for Period;
+    bus_in_data2 <= "0011100010";
+    wait for 800 ns;
+    
+    -- BUS 4
+    
+    bus_in_data4 <= "1100000001";
+    wait for Period;
+    bus_in_data4 <= "0100000001";
+    wait for 800 ns - Period;
+    bus_in_data4 <= "1110101010";
+    wait for Period;
+    bus_in_data4 <= "0110101010";
+    wait for 800 ns - Period;
+    bus_in_data4 <= "1100001111";
+    wait for Period;
+    bus_in_data4 <= "0100001111";
+    wait for 800 ns - Period;
+    bus_in_data4 <= "1111110000";
+    wait for Period;
+    bus_in_data4 <= "0111110000";
+    wait for 800 ns - Period;
+    bus_in_data4 <= "1101010101";
+    wait for Period;
+    bus_in_data4 <= "0101010101";
+    wait for 800 ns - Period;
+    bus_in_data4 <= "1111100010";
+    wait for Period;
+    bus_in_data4 <= "0011100010";
+    wait for 800 ns;
+-----------------------------------------------------END OF data transmission to bus controller----------------------------------------------------
+
+
+------------------------------------------------------START OF IN PACKET-----------------------------------------------------------------------------
+
+    --wait for Period;
+    send_byte_serially("00101010", d_plusin, d_minusin, currentTestByte); -- MDATA SYNC byte
+    send_byte_serially("00000101", d_plusin, d_minusin, currentTestByte); -- MDATA PID
+    
+    -- Bit 1
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 2
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Skipped Bit 3
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 3
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 4
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 5
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 6
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+    
+    -- Bit 7
+    d_plusin <= '1';
+    d_minusin <= '0';
+    wait for 20*Period;
+    
+    -- Bit 8
+    d_plusin <= '0';
+    d_minusin <= '1';
+    wait for 20*Period;
+ 
+    --send_byte_serially("01010100", d_plusin, d_minusin, currentTestByte); -- MDATA ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+    d_plusin <= '0'; -- EOP
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+
+
+
+    send_byte_serially("00101010", d_plusin, d_minusin, currentTestByte); -- IN SYNC byte
+    send_byte_serially("00100111", d_plusin, d_minusin, currentTestByte); -- IN PID
+    
+    send_byte_serially("10101011", d_plusin, d_minusin, currentTestByte); -- IN ADDRESS -- send data to Port #3 or Decoded address "00000011"
+
+    --wait for 5*Period;
+    d_plusin <= '0'; -- EOP
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+
+
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+    
+    d_plusin <= '0'; -- EOP #1
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1'; -- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+   
+    d_plusin <= '0'; -- EOP #2
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period; 
+    
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte); -- SEND random bytes hereon  until THREE OUT EOP's have been detected
+    send_byte_serially("11111010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101111", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10111110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101110", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("10101010", d_plusin, d_minusin, currentTestByte);
+    send_byte_serially("11101110", d_plusin, d_minusin, currentTestByte);
+   
+    d_plusin <= '0'; -- EOP #3
+    d_minusin <= '0';
+    wait for Period; -- EOP has to hold for 1 bit length
+    d_plusin <= '1';-- send both differential lines back to high (IDLE)
+    d_minusin <= '1';
+    wait for Period;
+
+------------------------------------------------------END OF IN PACKET------------------------------------------------------------------------------
+
+
+---------------------------------------
+
+    --send_byte_serially("", d_plusin, d_minusin);    
+    
+  end process;
+end TEST;

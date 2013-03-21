@@ -1,0 +1,254 @@
+-- $Id: 	mg32
+-- File name:   transceiver.vhd
+-- Created:     11/22/2012
+-- Author:      Edward Kidarsa
+-- Lab Section: 337-04
+-- Version:     1.0  Initial Design Entry
+-- Description: Top level of transceiver block
+
+
+LIBRARY IEEE;
+USE IEEE.std_logic_1164.ALL;
+
+entity transceiver is
+  port (
+    clk			: in  std_logic;
+    rst_n		: in  std_logic;
+    d_plus_in		: in  std_logic;  --  USB D+
+    d_plus_out		: out std_logic;  --  USB D+
+    d_minus_in		: in  std_logic;  --  USB D-
+    d_minus_out		: out std_logic;  --  USB D-
+    d_enable		: out std_logic;  --  USB data pin enable
+    bus_IN_data1	: in  std_logic_vector (9 downto 0);
+    bus_IN_data2	: in  std_logic_vector (9 downto 0);
+    bus_IN_data3	: in  std_logic_vector (9 downto 0);
+    bus_IN_data4	: in  std_logic_vector (9 downto 0);
+    bus_OUT_data	: out std_logic_vector (9 downto 0));
+end entity transceiver;
+
+architecture usb_port of transceiver is
+
+  component masterController is
+    port (
+      clk	 		: in  std_logic;
+      rst_n 			: in  std_logic;
+      byte_done 		: in  std_logic; -- from USB Rx
+      eopDetect	 		: in  std_logic; -- from USB Tx
+      usb_data		 	: in  std_logic_vector(7 downto 0); -- from USB Rx
+      sram_control		: in  std_logic; -- from SRAM
+      sram_data_out		: in  std_logic_vector(7 downto 0); -- from SRAM
+      next_byte		 	: in  std_logic;  -- from USB Tx
+      master_address 		: out std_logic_vector(7 downto 0); -- to bus controller
+      load_data 		: out std_logic; -- to USB Tx
+      tx_enable			: out std_logic; -- to USB Tx
+      data_transmission_live 	: out std_logic; -- to Bus_Data line
+      byte_strobe 		: out std_logic; -- to Bus_Data line
+      bus_data 			: out std_logic_vector(7 downto 0); -- to Bus_Data line
+      sram_select 		: out std_logic_vector(1 downto 0); -- to SRAM module
+      sram_address 		: out std_logic_vector(8 downto 0); -- to SRAM module
+      read_enable 		: out std_logic); -- to SRAM module
+  end component;
+
+  component bus_controller is
+    port (
+      clk 			: in  std_logic;
+      rst 			: in  std_logic;
+      SRAM_control 		: in  std_logic;
+      BUS_IN 			: in  std_logic_vector(9 downto 0);
+      MASTER_ADDRESS 		: in  std_logic_vector(7 downto 0);
+      cont_addr 		: out std_logic_vector(8 downto 0);
+      write_enable 		: out std_logic;
+      BUS_VAL	 		: out std_logic_vector(7 downto 0));
+  end component;
+
+  component sram_module is
+    port (
+      clk 			: in  std_logic;
+      rst 			: in  std_logic;
+      cont1_addr 		: in  std_logic_vector(8 downto 0);
+      cont2_addr 		: in  std_logic_vector(8 downto 0);
+      cont3_addr 		: in  std_logic_vector(8 downto 0);
+      cont4_addr 		: in  std_logic_vector(8 downto 0);
+      bus_val1 			: in  std_logic_vector(7 downto 0);
+      bus_val2 			: in  std_logic_vector(7 downto 0);
+      bus_val3 			: in  std_logic_vector(7 downto 0);
+      bus_val4 			: in  std_logic_vector(7 downto 0);
+      write_enable1 		: in  std_logic;
+      write_enable2 		: in  std_logic;
+      write_enable3 		: in  std_logic;
+      write_enable4 		: in  std_logic;
+      SRAM_SELECT 		: in  std_logic_vector (1 downto 0);
+      SRAM_ADDRESS 		: in  std_logic_vector(8 downto 0);
+      read_enable 		: in  std_logic;
+      DATA_OUT 			: out std_logic_vector(7 downto 0);
+      SRAM_control 		: out std_logic);
+  end component;
+
+  component USB_rx is
+    port (
+      clk			: in  std_logic;
+      rst			: in  std_logic;
+      d_plus			: in  std_logic;
+      d_minus			: in  std_logic;
+      USB_Data			: out std_logic_vector (7 downto 0);
+      Byte_Done			: out std_logic;
+      EOP			: out std_logic);
+  end component;
+
+  component tx_usb is
+    port(
+      clk   			: in  std_logic;
+      rst_n			: in  std_logic;
+      tx_enable			: in  std_logic;
+      data_out			: in  std_logic_vector(7 downto 0);
+      load_data			: in  std_logic; 
+      tx_idle			: out std_logic; 
+      data_minus_out    	: out std_logic;
+      data_plus_out     	: out std_logic);
+  end component;
+
+  signal in_USB_Data			: std_logic_vector (7 downto 0);
+  signal in_Byte_Done			: std_logic;
+  signal in_EOP				: std_logic;
+
+  signal in_Bus_Data			: std_logic_vector (7 downto 0);
+  signal in_Data_Transmission_Live	: std_logic;
+  signal in_Byte_Strobe			: std_logic;
+  signal in_SRAM_Select			: std_logic_vector (1 downto 0);
+  signal in_SRAM_Address		: std_logic_vector (8 downto 0);
+  signal in_Read_Enable			: std_logic;
+  signal in_Master_Address		: std_logic_vector (7 downto 0);
+  signal in_TX_Enable			: std_logic;
+  signal in_Load_Data			: std_logic;
+
+  signal in_Cont_Addr1			: std_logic_vector (8 downto 0);
+  signal in_Cont_Addr2			: std_logic_vector (8 downto 0);
+  signal in_Cont_Addr3			: std_logic_vector (8 downto 0);
+  signal in_Cont_Addr4			: std_logic_vector (8 downto 0);
+  signal in_Write_Enable1		: std_logic;
+  signal in_Write_Enable2		: std_logic;
+  signal in_Write_Enable3		: std_logic;
+  signal in_Write_Enable4		: std_logic;
+  signal in_BUS_VAL1			: std_logic_vector (7 downto 0);
+  signal in_BUS_VAL2			: std_logic_vector (7 downto 0);
+  signal in_BUS_VAL3			: std_logic_vector (7 downto 0);
+  signal in_BUS_VAL4			: std_logic_vector (7 downto 0);
+
+  signal in_Data_Out			: std_logic_vector (7 downto 0);
+  signal in_SRAM_Control		: std_logic;
+
+  signal in_tx_idle			: std_logic;
+
+begin
+
+  bus_OUT_data <= in_Byte_Strobe & in_Data_Transmission_Live & in_Bus_Data;
+  d_enable     <= in_tx_idle;
+
+  USB_RX_Block: USB_rx
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      d_plus		=> d_plus_in,
+      d_minus		=> d_minus_in,
+      USB_Data  	=> in_USB_Data,
+      Byte_Done 	=> in_Byte_Done,
+      EOP		=> in_EOP);
+
+  masterController_Block: masterController
+    port map (
+      clk		=> clk,
+      rst_n		=> rst_n,
+      byte_done 	=> in_Byte_Done,
+      eopDetect 	=> in_EOP,
+      usb_data  	=> in_USB_Data,
+      sram_control	=> in_SRAM_Control,
+      sram_data_out	=> in_Data_Out,
+      next_byte		=> in_tx_idle
+      master_address => in_Master_Address,
+      load_data 		=> in_Load_Data,
+      tx_enable		=> in_TX_Enable,
+      data_transmission_live => in_Data_Transmission_Live,
+      byte_strobe => in_Byte_Strobe,
+      bus_data => in_Bus_Data,
+      sram_select => in_SRAM_Select,
+      sram_address => in_SRAM_Address,	
+      read_enable => in_Read_Enable);
+
+  bus_controller1_block: bus_controller
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      SRAM_control	=> in_SRAM_Control,
+      BUS_IN		=> bus_IN_data1,
+      MASTER_ADDRESS	=> in_Master_Address,
+      cont_addr		=> in_Cont_Addr1,
+      write_enable	=> in_Write_Enable1,
+      BUS_VAL		=> in_BUS_VAL1);
+
+  bus_controller2_block: bus_controller
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      SRAM_control	=> in_SRAM_Control,
+      BUS_IN		=> bus_IN_data2,
+      MASTER_ADDRESS	=> in_Master_Address,
+      cont_addr		=> in_Cont_Addr2,
+      write_enable	=> in_Write_Enable2,
+      BUS_VAL		=> in_BUS_VAL2);
+
+  bus_controller3_block: bus_controller
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      SRAM_control	=> in_SRAM_Control,
+      BUS_IN		=> bus_IN_data3,
+      MASTER_ADDRESS	=> in_Master_Address,
+      cont_addr		=> in_Cont_Addr3,
+      write_enable	=> in_Write_Enable3,
+      BUS_VAL		=> in_BUS_VAL3);
+
+  bus_controller4_block: bus_controller
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      SRAM_control	=> in_SRAM_Control,
+      BUS_IN		=> bus_IN_data4,
+      MASTER_ADDRESS	=> in_Master_Address,
+      cont_addr		=> in_Cont_Addr4,
+      write_enable	=> in_Write_Enable4,
+      BUS_VAL		=> in_BUS_VAL4);
+
+  SRAM_Module_block: sram_module
+    port map (
+      clk		=> clk,
+      rst		=> rst_n,
+      cont1_addr 	=> in_Cont_Addr1,
+      cont2_addr 	=> in_Cont_Addr2,
+      cont3_addr 	=> in_Cont_Addr3,
+      cont4_addr 	=> in_Cont_Addr4,
+      bus_val1 		=> in_BUS_VAL1,
+      bus_val2 		=> in_BUS_VAL2,
+      bus_val3 		=> in_BUS_VAL3,
+      bus_val4 		=> in_BUS_VAL4,
+      write_enable1 	=> in_Write_Enable1,
+      write_enable2 	=> in_Write_Enable2,
+      write_enable3 	=> in_Write_Enable3,
+      write_enable4 	=> in_Write_Enable4,
+      SRAM_SELECT 	=> in_SRAM_Select,
+      SRAM_ADDRESS 	=> in_SRAM_Address,
+      read_enable 	=> in_Read_Enable,
+      DATA_OUT		=> in_Data_Out,
+      SRAM_control	=> in_SRAM_Control);
+
+  tx_usb_block: tx_usb
+    port map (
+      clk		=> clk,
+      rst_n		=> rst_n,
+      tx_enable		=> in_TX_Enable,
+      data_out		=> in_Data_Out,
+      load_data		=> in_Load_Data,
+      tx_idle		=> in_tx_idle,
+      data_minus_out	=> d_minus_out,
+      data_plus_out     => d_plus_out);
+      
+end architecture usb_port;

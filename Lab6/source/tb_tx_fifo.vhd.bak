@@ -1,0 +1,100 @@
+-- $Id: $
+-- File name:   tb_tx_fifo.vhd
+-- Created:     10/1/2012
+-- Author:      Vineeth Harikumar
+-- Lab Section: 337-01
+-- Version:     1.0  Initial Test Bench
+
+library ieee;
+--library gold_lib;   --UNCOMMENT if you're using a GOLD model
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+--use gold_lib.all;   --UNCOMMENT if you're using a GOLD model
+
+entity tb_tx_fifo is
+generic (Period : Time := 10 ns);
+end tb_tx_fifo;
+
+architecture TEST of tb_tx_fifo is
+
+  function UINT_TO_STDV( X: INTEGER; NumBits: INTEGER )
+     return STD_LOGIC_VECTOR is
+  begin
+    return std_logic_vector(to_unsigned(X, NumBits));
+  end;
+
+  function STDV_TO_UINT( X: std_logic_vector)
+     return integer is
+  begin
+    return to_integer(unsigned(x));
+  end;
+
+  component tx_fifo
+    PORT(
+         clk : in std_logic;
+         rst_n : in std_logic;
+         read_enable : in std_logic;
+         read_data : out std_logic_vector(7 downto 0);
+         fifo_empty : out std_logic;
+         fifo_full : out std_logic;
+         write_enable : in std_logic;
+         write_data : in std_logic_vector(7 downto 0)
+    );
+  end component;
+
+-- Insert signals Declarations here
+  signal clk : std_logic;
+  signal rst_n : std_logic;
+  signal read_enable : std_logic;
+  signal read_data : std_logic_vector(7 downto 0);
+  signal fifo_empty : std_logic;
+  signal fifo_full : std_logic;
+  signal write_enable : std_logic;
+  signal write_data : std_logic_vector(7 downto 0);
+
+-- signal <name> : <type>;
+
+begin
+
+CLKGEN: process
+  variable clk_tmp: std_logic := '0';
+begin
+  clk_tmp := not clk_tmp;
+  clk <= clk_tmp;
+  wait for Period/2;
+end process;
+
+  DUT: tx_fifo port map(
+                clk => clk,
+                rst_n => rst_n,
+                read_enable => read_enable,
+                read_data => read_data,
+                fifo_empty => fifo_empty,
+                fifo_full => fifo_full,
+                write_enable => write_enable,
+                write_data => write_data
+                );
+
+--   GOLD: <GOLD_NAME> port map(<put mappings here>);
+
+process
+
+  begin
+
+-- Insert TEST BENCH Code Here
+
+    rst_n <= '0';
+
+    read_enable <= '0';
+
+    write_enable <= '0';
+
+    write_data <= '0';
+    
+    wait for 7 ns;
+    rst_n <= '1';
+    
+    
+
+  end process;
+end TEST;
